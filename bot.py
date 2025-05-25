@@ -64,7 +64,7 @@ async def main_handler(message: types.Message):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompts[lang]},
                 {"role": "user", "content": prompt}
