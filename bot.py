@@ -5,34 +5,41 @@ from aiogram.utils import executor
 import openai
 import os
 from dotenv import load_dotenv
-from dotenv import load_dotenv
-import os
 
+# Загружаем .env переменные
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-if TELEGRAM_TOKEN is None or OPENAI_API_KEY is None:
-    raise ValueError("Не найдены токены в переменных окружения. Проверь .env файл!")
+# Проверка на наличие токенов
+if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
+    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь переменные TELEGRAM_TOKEN и OPENAI_API_KEY!")
 
-load_dotenv()
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Устанавливаем API ключ для OpenAI
 openai.api_key = OPENAI_API_KEY
 
+# Инициализация бота
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
+
 logging.basicConfig(level=logging.INFO)
 
-user_state = {}
-
+# Клавиатура выбора языка
 lang_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-lang_kb.add(KeyboardButton("🇷🇴 Română"), KeyboardButton("🇷🇺 Русский"), KeyboardButton("🇬🇧 English"))
+lang_kb.add(
+    KeyboardButton("🇷🇴 Română"),
+    KeyboardButton("🇷🇺 Русский"),
+    KeyboardButton("🇬🇧 English")
+)
 
 @dp.message_handler(commands=["start"])
 async def start_handler(message: types.Message):
     await message.answer("Alege limba / Выбери язык / Choose language:", reply_markup=lang_kb)
+
+# Запуск бота
+if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=True)
 
 @dp.message_handler(lambda m: m.text in ["🇷🇴 Română", "🇷🇺 Русский", "🇬🇧 English"])
 async def language_handler(message: types.Message):
