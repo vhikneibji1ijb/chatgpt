@@ -73,4 +73,4 @@ async def main_handler(message: types.Message):
         await message.answer("⚠️ Eroare / Ошибка / Error: " + str(e))
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp, skip_updates=True
