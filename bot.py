@@ -2,27 +2,32 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
-import openai
+from openai import OpenAI  # Импортируем новый клиент
 import os
 from dotenv import load_dotenv
 
+# Загружаем .env переменные
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# Проверка на наличие токенов
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
-    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь TELEGRAM_TOKEN и OPENAI_API_KEY!")
+    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь переменные TELEGRAM_TOKEN и OPENAI_API_KEY!")
 
-openai.api_key = OPENAI_API_KEY
+# Инициализация клиента OpenAI с API ключом
+client = OpenAI(api_key=OPENAI_API_KEY)
 
+# Инициализация бота
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 
 logging.basicConfig(level=logging.INFO)
 
-user_state = {}  # Важно! Инициализация словаря состояний
+user_state = {}
 
+# Клавиатура выбора языка
 lang_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 lang_kb.add(
     KeyboardButton("🇷🇴 Română"),
@@ -58,7 +63,7 @@ async def main_handler(message: types.Message):
     }
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_prompts[lang]},
