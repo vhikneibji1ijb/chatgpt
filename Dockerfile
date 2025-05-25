@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем весь код в контейнер
-COPY . .
+COPY .env .
 
 # Устанавливаем переменные окружения (опционально, можно задать через хостинг)
 # ENV TELEGRAM_TOKEN=your_telegram_token
