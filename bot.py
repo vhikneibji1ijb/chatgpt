@@ -5,6 +5,16 @@ from aiogram.utils import executor
 import openai
 import os
 from dotenv import load_dotenv
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if TELEGRAM_TOKEN is None or OPENAI_API_KEY is None:
+    raise ValueError("Не найдены токены в переменных окружения. Проверь .env файл!")
 
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
