@@ -6,26 +6,23 @@ import openai
 import os
 from dotenv import load_dotenv
 
-# Загружаем .env переменные
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Проверка на наличие токенов
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
-    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь переменные TELEGRAM_TOKEN и OPENAI_API_KEY!")
+    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь TELEGRAM_TOKEN и OPENAI_API_KEY!")
 
-# Устанавливаем API ключ для OpenAI
 openai.api_key = OPENAI_API_KEY
 
-# Инициализация бота
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 
 logging.basicConfig(level=logging.INFO)
 
-# Клавиатура выбора языка
+user_state = {}  # Важно! Инициализация словаря состояний
+
 lang_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 lang_kb.add(
     KeyboardButton("🇷🇴 Română"),
@@ -36,10 +33,6 @@ lang_kb.add(
 @dp.message_handler(commands=["start"])
 async def start_handler(message: types.Message):
     await message.answer("Alege limba / Выбери язык / Choose language:", reply_markup=lang_kb)
-
-# Запуск бота
-if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
 
 @dp.message_handler(lambda m: m.text in ["🇷🇴 Română", "🇷🇺 Русский", "🇬🇧 English"])
 async def language_handler(message: types.Message):
