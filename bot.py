@@ -89,3 +89,16 @@ async def main_handler(message: types.Message):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+
+import asyncio
+
+if __name__ == "__main__":
+    async def on_startup():
+        # Удаляем webhook перед запуском polling
+        await bot.delete_webhook()
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(on_startup())
+
+    executor.start_polling(dp, skip_updates=True)
+
