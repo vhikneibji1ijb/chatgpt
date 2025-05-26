@@ -1,3 +1,8 @@
+import asyncio
+
+async def on_startup():
+    await bot.delete_webhook()
+
 import logging
 import os
 import requests
