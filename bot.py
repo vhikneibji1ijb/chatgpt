@@ -1,28 +1,24 @@
 import logging
+import os
+import requests
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
-from openai import OpenAI  # Импортируем новый клиент
-import os
 from dotenv import load_dotenv
 
 # Загружаем .env переменные
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Проверка на наличие токенов
-if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
-    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь переменные TELEGRAM_TOKEN и OPENAI_API_KEY!")
-
-# Инициализация клиента OpenAI с API ключом
-client = OpenAI(api_key=OPENAI_API_KEY)
+if not TELEGRAM_TOKEN or not GROQ_API_KEY:
+    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь TELEGRAM_TOKEN и GROQ_API_KEY!")
 
 # Инициализация бота
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
-
 logging.basicConfig(level=logging.INFO)
 
 user_state = {}
@@ -62,20 +58,33 @@ async def main_handler(message: types.Message):
         "🇬🇧 English": "You are a Moldovan teacher explaining school material to students (grades 5–12) and preparing for national exams."
     }
 
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "model": "mixtral-8x7b-32768",  # Можно заменить на llama3-8b-8192
+        "messages": [
+            {"role": "system", "content": system_prompts[lang]},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1000
+    }
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompts[lang]},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=1000
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=data
         )
-        answer = response.choices[0].message.content.strip()
-        await message.answer(answer)
+        response.raise_for_status()
+        result = response.json()
+        answer = result["choices"][0]["message"]["content"]
+        await message.answer(answer.strip())
     except Exception as e:
-        await message.answer("⚠️ Eroare / Ошибка / Error: " + str(e))
+        await message.answer("⚠️ Eroare / Ошибка / Error:\n" + str(e))
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
