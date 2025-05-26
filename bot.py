@@ -12,18 +12,15 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Проверка на наличие токенов
 if not TELEGRAM_TOKEN or not GROQ_API_KEY:
-    raise ValueError("❌ Не найдены токены в переменных окружения. Проверь TELEGRAM_TOKEN и GROQ_API_KEY!")
+    raise ValueError("❌ Проверь TELEGRAM_TOKEN и GROQ_API_KEY в .env!")
 
-# Инициализация бота
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logging.basicConfig(level=logging.INFO)
 
 user_state = {}
 
-# Клавиатура выбора языка
 lang_kb = ReplyKeyboardMarkup(resize_keyboard=True)
 lang_kb.add(
     KeyboardButton("🇷🇴 Română"),
@@ -39,18 +36,18 @@ async def start_handler(message: types.Message):
 async def language_handler(message: types.Message):
     uid = message.from_user.id
     user_state[uid] = {"lang": message.text}
-    text = {
+    texts = {
         "🇷🇴 Română": "Salut! Trimite-mi o întrebare legată de temă sau BAC.",
         "🇷🇺 Русский": "Привет! Отправь мне вопрос по домашке или экзамену.",
         "🇬🇧 English": "Hi! Ask me anything related to school or exams."
     }
-    await message.answer(text[message.text])
+    await message.answer(texts[message.text])
 
 @dp.message_handler()
 async def main_handler(message: types.Message):
     uid = message.from_user.id
     lang = user_state.get(uid, {}).get("lang", "🇷🇺 Русский")
-    prompt = message.text
+    user_prompt = message.text
 
     system_prompts = {
         "🇷🇴 Română": "Ești un profesor din Moldova care explică materia elevilor din clasele 5–12, inclusiv pentru examenele EN și BAC.",
@@ -63,33 +60,33 @@ async def main_handler(message: types.Message):
         "Content-Type": "application/json"
     }
 
+    prompt_text = f"{system_prompts[lang]}\nUser: {user_prompt}\nAssistant:"
+
     data = {
         "model": "mixtral-8x7b-32768",
-        "prompt": f"{system_prompts[lang]}\nUser: {prompt}\nAssistant:",
-        "temperature": 0.7,
+        "prompt": prompt_text,
         "max_tokens": 1000,
+        "temperature": 0.7,
         "stop": ["User:", "Assistant:"]
     }
 
     try:
         response = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
+            "https://api.groq.com/v1/completions",
             headers=headers,
             json=data
         )
         response.raise_for_status()
 
         result = response.json()
-        # Печать для отладки — можно убрать позже
-        logging.info(f"Groq response: {result}")
+        logging.info(f"Groq API response: {result}")
 
-        # Ответ будет в поле 'choices'[0]['text'] при использовании prompt
         answer = result["choices"][0]["text"].strip()
-
         await message.answer(answer)
     except Exception as e:
-        logging.error(f"Ошибка при запросе к Groq API: {e}")
+        logging.error(f"Ошибка Groq API: {e}")
         await message.answer("⚠️ Eroare / Ошибка / Error:\n" + str(e))
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+
