@@ -64,13 +64,11 @@ async def main_handler(message: types.Message):
     }
 
     data = {
-        "model": "mixtral-8x7b-32768",  # Можно заменить на llama3-8b-8192
-        "messages": [
-            {"role": "system", "content": system_prompts[lang]},
-            {"role": "user", "content": prompt}
-        ],
+        "model": "mixtral-8x7b-32768",
+        "prompt": f"{system_prompts[lang]}\nUser: {prompt}\nAssistant:",
         "temperature": 0.7,
-        "max_tokens": 1000
+        "max_tokens": 1000,
+        "stop": ["User:", "Assistant:"]
     }
 
     try:
@@ -80,10 +78,17 @@ async def main_handler(message: types.Message):
             json=data
         )
         response.raise_for_status()
+
         result = response.json()
-        answer = result["choices"][0]["message"]["content"]
-        await message.answer(answer.strip())
+        # Печать для отладки — можно убрать позже
+        logging.info(f"Groq response: {result}")
+
+        # Ответ будет в поле 'choices'[0]['text'] при использовании prompt
+        answer = result["choices"][0]["text"].strip()
+
+        await message.answer(answer)
     except Exception as e:
+        logging.error(f"Ошибка при запросе к Groq API: {e}")
         await message.answer("⚠️ Eroare / Ошибка / Error:\n" + str(e))
 
 if __name__ == "__main__":
