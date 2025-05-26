@@ -106,4 +106,5 @@ if __name__ == "__main__":
     loop.run_until_complete(on_startup())
 
     executor.start_polling(dp, skip_updates=True)
+kill <pid>
 
