@@ -6,7 +6,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-# Загружаем .env переменные
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -60,28 +59,29 @@ async def main_handler(message: types.Message):
         "Content-Type": "application/json"
     }
 
-    prompt_text = f"{system_prompts[lang]}\nUser: {user_prompt}\nAssistant:"
+    messages = [
+        {"role": "system", "content": system_prompts[lang]},
+        {"role": "user", "content": user_prompt}
+    ]
 
     data = {
-        "model": "mixtral-8x7b-32768",
-        "prompt": prompt_text,
-        "max_tokens": 1000,
+        "model": "mixtral-8x7b-32768",  # или "llama3-8b-8192" — уточни в docs
+        "messages": messages,
         "temperature": 0.7,
-        "stop": ["User:", "Assistant:"]
+        "max_tokens": 1000
     }
 
     try:
         response = requests.post(
-            "https://api.groq.com/v1/completions",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=data
         )
         response.raise_for_status()
-
         result = response.json()
         logging.info(f"Groq API response: {result}")
 
-        answer = result["choices"][0]["text"].strip()
+        answer = result["choices"][0]["message"]["content"].strip()
         await message.answer(answer)
     except Exception as e:
         logging.error(f"Ошибка Groq API: {e}")
@@ -89,4 +89,3 @@ async def main_handler(message: types.Message):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
-
