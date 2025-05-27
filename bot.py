@@ -1,3 +1,5 @@
+from users_db import is_pro, start_trial, pro_until, add_pro
+import time
 import os
 import logging
 import asyncio
