@@ -2,7 +2,10 @@ import logging
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiogram.utils import executor
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.filters import Command
+from aiogram import Router
+from aiogram.client.session.aiohttp import AiohttpSession
 from dotenv import load_dotenv
 import aiohttp
 import asyncio
@@ -16,20 +19,15 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not TELEGRAM_TOKEN or not GROQ_API_KEY:
     raise ValueError("❌ Не найдены токены в переменных окружения. Проверь TELEGRAM_TOKEN и GROQ_API_KEY!")
 
-# Инициализация бота
-bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher(bot)
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-user_state = {}
-
 # Клавиатура выбора языка
-lang_kb = ReplyKeyboardMarkup(resize_keyboard=True)
-lang_kb.add(
-    KeyboardButton("🇷🇴 Română"),
-    KeyboardButton("🇷🇺 Русский"),
-    KeyboardButton("🇬🇧 English")
-)
+lang_kb = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[
+    [KeyboardButton(text="🇷🇴 Română")],
+    [KeyboardButton(text="🇷🇺 Русский")],
+    [KeyboardButton(text="🇬🇧 English")]
+])
 
 system_prompts = {
     "🇷🇴 Română": "Ești un profesor din Moldova care explică materia elevilor din clasele 5–12, inclusiv pentru examenele EN și BAC.",
@@ -38,11 +36,15 @@ system_prompts = {
 }
 default_lang = "🇷🇺 Русский"
 
-@dp.message_handler(commands=["start"])
+user_state = {}
+
+router = Router()
+
+@router.message(Command("start"))
 async def start_handler(message: types.Message):
     await message.answer("Alege limba / Выбери язык / Choose language:", reply_markup=lang_kb)
 
-@dp.message_handler(lambda m: m.text in system_prompts.keys())
+@router.message(lambda m: m.text in system_prompts.keys())
 async def language_handler(message: types.Message):
     uid = message.from_user.id
     user_state[uid] = {"lang": message.text}
@@ -53,7 +55,7 @@ async def language_handler(message: types.Message):
     }
     await message.answer(text[message.text])
 
-@dp.message_handler()
+@router.message()
 async def main_handler(message: types.Message):
     uid = message.from_user.id
     lang = user_state.get(uid, {}).get("lang", default_lang)
@@ -67,7 +69,7 @@ async def main_handler(message: types.Message):
     }
 
     data = {
-        "model": "mixtral-8x7b-32768",  # Можно заменить на llama3-8b-8192
+        "model": "mixtral-8x7b-32768",
         "messages": [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": prompt}
@@ -98,5 +100,12 @@ async def main_handler(message: types.Message):
             logging.exception("Unexpected error")
             await message.answer("⚠️ Eroare / Ошибка / Error: Unexpected error.")
 
+async def main():
+    session = AiohttpSession()
+    bot = Bot(token=TELEGRAM_TOKEN, session=session)
+    dp = Dispatcher(storage=MemoryStorage())
+    dp.include_router(router)
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
