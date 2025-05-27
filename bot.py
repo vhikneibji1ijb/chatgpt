@@ -42,7 +42,7 @@ def get_sys_prompt(lang):
 
 # =============== PRO management ===============
 
-ADMIN_IDS = [123456789]  # <-- замените на свой Telegram user_id
+ADMIN_IDS = [6009593253]  # <-- замените на свой Telegram user_id
 
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
