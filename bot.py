@@ -8,6 +8,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 import aiohttp
 
+from pro_users import is_pro, set_pro, set_free
+
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -38,6 +40,47 @@ router = Router()
 def get_sys_prompt(lang):
     return LANGUAGES[lang][1]
 
+# =============== PRO management ===============
+
+ADMIN_IDS = [123456789]  # <-- замените на свой Telegram user_id
+
+@router.message(Command("pro"))
+async def make_pro(message: types.Message):
+    if message.from_user.id in ADMIN_IDS:
+        parts = message.text.split()
+        if len(parts) >= 2:
+            uid = int(parts[1])
+            set_pro(uid)
+            await message.answer(f"Пользователю {uid} выдан PRO на 30 дней.")
+        else:
+            set_pro(message.from_user.id)
+            await message.answer("Вам выдан PRO на 30 дней.")
+    else:
+        await message.answer("Обратитесь к администратору для получения PRO.")
+
+@router.message(Command("free"))
+async def remove_pro(message: types.Message):
+    if message.from_user.id in ADMIN_IDS:
+        parts = message.text.split()
+        if len(parts) >= 2:
+            uid = int(parts[1])
+            set_free(uid)
+            await message.answer(f"У пользователя {uid} снят PRO.")
+        else:
+            set_free(message.from_user.id)
+            await message.answer("Ваш PRO снят.")
+    else:
+        await message.answer("Обратитесь к администратору.")
+
+@router.message(Command("status"))
+async def status(message: types.Message):
+    if is_pro(message.from_user.id):
+        await message.answer("У вас PRO-доступ 🟢")
+    else:
+        await message.answer("У вас обычный доступ 🔘. Для расширенных возможностей напишите /pro")
+
+# =============== Языки ================
+
 @router.message(Command("start"))
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
@@ -56,9 +99,19 @@ async def set_language(message: types.Message):
     }
     await message.answer(greetings[message.text], reply_markup=types.ReplyKeyboardRemove())
 
+# =============== Основная логика ================
+
 @router.message()
 async def ask_groq(message: types.Message):
-    lang = user_lang.get(message.from_user.id, DEFAULT_LANG)
+    user_id = message.from_user.id
+
+    # Пример ограничения: обычным нельзя отправлять больше 250 символов за раз
+    if not is_pro(user_id):
+        if len(message.text) > 250:
+            await message.answer("❗ Это доступно только для PRO пользователей. Для расширения возможностей напишите /pro")
+            return
+
+    lang = user_lang.get(user_id, DEFAULT_LANG)
     sys_prompt = get_sys_prompt(lang)
     prompt = message.text.strip()
 
