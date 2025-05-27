@@ -1,115 +1,100 @@
 import os
 import logging
 import asyncio
-from aiogram import Bot, Dispatcher, types, Router, F
+from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
+import aiohttp
 
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-if not TELEGRAM_TOKEN:
-    raise ValueError("Nu ai setat TELEGRAM_TOKEN în .env!")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not TELEGRAM_TOKEN or not GROQ_API_KEY:
+    raise ValueError("Не найдены TELEGRAM_TOKEN или GROQ_API_KEY в .env!")
 
 logging.basicConfig(level=logging.INFO)
 
-# Contextul funcției alese de fiecare user
-user_context = {}
+LANGUAGES = {
+    "🇷🇴 Română": ("ro", "Ответь только на румынском языке, игнорируй другие языки."),
+    "🇷🇺 Русский": ("ru", "Отвечай только на русском языке, игнорируй другие языки."),
+    "🇬🇧 English": ("en", "Reply only in English, ignore all other languages."),
+}
+DEFAULT_LANG = "🇷🇺 Русский"
 
-# Meniu principal
-kb_main = ReplyKeyboardMarkup(
+lang_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📚 Explică tema")],
-        [KeyboardButton(text="✅ Verifică tema")],
-        [KeyboardButton(text="🗓️ Calendar inteligent")],
-        [KeyboardButton(text="⚙️ Setări")],
-        [KeyboardButton(text="🖼️ OCR (text din poză)")],
-        [KeyboardButton(text="🧑‍💼 Ajutor cotidian")],
-        [KeyboardButton(text="💬 Istoric conversații")],
+        [KeyboardButton(text="🇷🇴 Română")],
+        [KeyboardButton(text="🇷🇺 Русский")],
+        [KeyboardButton(text="🇬🇧 English")]
     ],
     resize_keyboard=True
 )
 
+user_lang = {}
 router = Router()
 
+def get_sys_prompt(lang):
+    return LANGUAGES[lang][1]
+
 @router.message(Command("start"))
-async def start_command(message: types.Message):
-    user_context.pop(message.from_user.id, None)
+@router.message(Command("language"))
+async def choose_language(message: types.Message):
     await message.answer(
-        "Bine ai venit! Alege o funcție din meniu:",
-        reply_markup=kb_main
+        "Выберите язык / Alege limba / Choose language:",
+        reply_markup=lang_kb
     )
 
-@router.message(F.text == "📚 Explică tema")
-async def explain_homework(message: types.Message):
-    user_context[message.from_user.id] = "explica"
-    await message.answer("Trimite enunțul temei (text).")
+@router.message(lambda m: m.text in LANGUAGES)
+async def set_language(message: types.Message):
+    user_lang[message.from_user.id] = message.text
+    greetings = {
+        "🇷🇴 Română": "Salut! Trimite-mi întrebarea ta.",
+        "🇷🇺 Русский": "Привет! Задай свой вопрос.",
+        "🇬🇧 English": "Hi! Please ask your question."
+    }
+    await message.answer(greetings[message.text], reply_markup=types.ReplyKeyboardRemove())
 
-@router.message(F.text == "✅ Verifică tema")
-async def check_homework(message: types.Message):
-    user_context[message.from_user.id] = "verifica"
-    await message.answer("Trimite tema ta ca text sau poză.")
-
-@router.message(F.text == "🖼️ OCR (text din poză)")
-async def ocr_feature(message: types.Message):
-    user_context[message.from_user.id] = "ocr"
-    await message.answer("Trimite poza din care vrei să extragi text.")
-
-@router.message(F.text == "🧑‍💼 Ajutor cotidian")
-async def daily_help(message: types.Message):
-    user_context[message.from_user.id] = "cotidian"
-    await message.answer("Scrie sau trimite ce vrei să rezolvi (ex: planner, sfat, etc).")
-
-@router.message(F.text == "🗓️ Calendar inteligent")
-async def calendar(message: types.Message):
-    user_context[message.from_user.id] = "calendar"
-    await message.answer("Descrie ce vrei să planifici sau organizezi.")
-
-@router.message(F.text == "💬 Istoric conversații")
-async def show_history(message: types.Message):
-    # aici poți adăuga logică pentru afișarea istoricului (ex: dintr-o bază de date)
-    await message.answer("Funcția de istoric nu e implementată în demo. Revino cu /start sau alege altceva.")
-
-@router.message(F.text == "⚙️ Setări")
-async def settings_menu(message: types.Message):
-    user_context[message.from_user.id] = "setari"
-    await message.answer("Aici poți schimba limba, nivelul sau alte opțiuni. Scrie ce vrei să schimbi.")
-
-# Handler pentru POZE
-@router.message(F.photo)
-async def handle_photo(message: types.Message):
-    functie = user_context.get(message.from_user.id)
-    if functie == "verifica":
-        await message.answer("Am primit poza. Încep analiza temei (demo).")
-        user_context.pop(message.from_user.id, None)
-    elif functie == "ocr":
-        await message.answer("Extragem textul din poza (demo OCR).")
-        user_context.pop(message.from_user.id, None)
-    else:
-        await message.answer("Nu știu ce să fac cu poza. Alege o funcție din meniu sau scrie /start.")
-
-# Handler pentru TEXT
 @router.message()
-async def handle_text(message: types.Message):
-    functie = user_context.get(message.from_user.id)
-    if functie == "explica":
-        await message.answer(f"Explicarea temei (demo): {message.text}")
-        user_context.pop(message.from_user.id, None)
-    elif functie == "verifica":
-        await message.answer(f"Verificarea temei (demo): {message.text}")
-        user_context.pop(message.from_user.id, None)
-    elif functie == "calendar":
-        await message.answer(f"Planificare în calendar (demo): {message.text}")
-        user_context.pop(message.from_user.id, None)
-    elif functie == "setari":
-        await message.answer(f"Setare modificată (demo): {message.text}")
-        user_context.pop(message.from_user.id, None)
-    elif functie == "cotidian":
-        await message.answer(f"Ajutor cotidian (demo): {message.text}")
-        user_context.pop(message.from_user.id, None)
-    else:
-        await message.answer("Am primit mesajul. Alege o funcție din meniu sau scrie /start.")
+async def ask_groq(message: types.Message):
+    lang = user_lang.get(message.from_user.id, DEFAULT_LANG)
+    sys_prompt = get_sys_prompt(lang)
+    prompt = message.text.strip()
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "llama3-8b-8192",
+        "messages": [
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 1000
+    }
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=30)
+            ) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    answer = result["choices"][0]["message"]["content"]
+                    await message.answer(answer.strip())
+                else:
+                    err_text = await resp.text()
+                    logging.error(f"Groq API error: {resp.status}, {err_text}")
+                    await message.answer("⚠️ Ошибка API. Попробуйте позже.")
+        except Exception as e:
+            logging.exception("Error contacting Groq API")
+            await message.answer("⚠️ Ошибка при обращении к API. Попробуйте позже.")
 
 async def main():
     bot = Bot(token=TELEGRAM_TOKEN)
