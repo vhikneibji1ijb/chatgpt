@@ -67,7 +67,7 @@ async def ask_groq(message: types.Message):
         "Content-Type": "application/json"
     }
     data = {
-        "model": "llama3-8b-8192",
+        "model": "Llama-3-Groq-70B-Tool-Use",
         "messages": [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": prompt}
