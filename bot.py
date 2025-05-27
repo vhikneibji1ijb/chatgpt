@@ -7,8 +7,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
-# --- Pentru OCR, calendar, etc, vei avea nevoie de librării suplimentare/integrare API ---
-
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TELEGRAM_TOKEN:
@@ -16,12 +14,10 @@ if not TELEGRAM_TOKEN:
 
 logging.basicConfig(level=logging.INFO)
 
-# --- State și memorie simplă ---
-user_settings = {}  # user_id: {nivel, stil, limba, etc.}
-user_history = {}   # user_id: [istoric mesaje]
-user_plans = {}     # user_id: [planuri calendar]
+# Contextul funcției alese de fiecare user
+user_context = {}
 
-# --- Meniuri și butoane ---
+# Meniu principal
 kb_main = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📚 Explică tema")],
@@ -39,65 +35,81 @@ router = Router()
 
 @router.message(Command("start"))
 async def start_command(message: types.Message):
-    uid = message.from_user.id
-    if uid not in user_settings:
-        user_settings[uid] = {"limba": "Română", "nivel": "Mediu", "stil": "Explicativ"}
+    user_context.pop(message.from_user.id, None)
     await message.answer(
-        "Bine ai venit! Ce vrei să faci azi?",
+        "Bine ai venit! Alege o funcție din meniu:",
         reply_markup=kb_main
     )
 
-@router.message(F.text == "⚙️ Setări")
-async def settings_menu(message: types.Message):
-    # aici poți adăuga sub-meniu pentru setare limba, stil, nivel etc.
-    await message.answer("Alege ce vrei să schimbi: /limba, /nivel, /stil")
-
-@router.message(Command("limba"))
-async def set_language(message: types.Message):
-    # exemplu rapid de schimbare limbă
-    user_settings[message.from_user.id]["limba"] = "Română"
-    await message.answer("Limba a fost setată la Română.")
-
-@router.message(Command("nivel"))
-async def set_difficulty(message: types.Message):
-    user_settings[message.from_user.id]["nivel"] = "Avansat"
-    await message.answer("Nivelul a fost setat la Avansat.")
-
 @router.message(F.text == "📚 Explică tema")
 async def explain_homework(message: types.Message):
-    await message.answer("Trimite-mi enunțul temei. Voi explica adaptat la stilul și nivelul tău.")
+    user_context[message.from_user.id] = "explica"
+    await message.answer("Trimite enunțul temei (text).")
 
 @router.message(F.text == "✅ Verifică tema")
 async def check_homework(message: types.Message):
-    await message.answer("Trimite-mi tema ta (text sau poză). Voi încerca o verificare automată.")
-
-@router.message(F.text == "🗓️ Calendar inteligent")
-async def calendar(message: types.Message):
-    await message.answer("Ce vrei să planificăm? (ex: pregătire BAC, teme, recapitulare)")
+    user_context[message.from_user.id] = "verifica"
+    await message.answer("Trimite tema ta ca text sau poză.")
 
 @router.message(F.text == "🖼️ OCR (text din poză)")
 async def ocr_feature(message: types.Message):
-    await message.answer("Trimite-mi o poză, voi extrage textul din ea (beta).")
+    user_context[message.from_user.id] = "ocr"
+    await message.answer("Trimite poza din care vrei să extragi text.")
 
 @router.message(F.text == "🧑‍💼 Ajutor cotidian")
 async def daily_help(message: types.Message):
-    await message.answer("Cu ce te pot ajuta în viața cotidiană? (ex: planner, sfaturi, reparații, documente)")
+    user_context[message.from_user.id] = "cotidian"
+    await message.answer("Scrie sau trimite ce vrei să rezolvi (ex: planner, sfat, etc).")
+
+@router.message(F.text == "🗓️ Calendar inteligent")
+async def calendar(message: types.Message):
+    user_context[message.from_user.id] = "calendar"
+    await message.answer("Descrie ce vrei să planifici sau organizezi.")
 
 @router.message(F.text == "💬 Istoric conversații")
 async def show_history(message: types.Message):
-    uid = message.from_user.id
-    history = user_history.get(uid, [])
-    if not history:
-        await message.answer("Nu ai încă istoric.")
-    else:
-        await message.answer("\n".join(history[-10:]))
+    # aici poți adăuga logică pentru afișarea istoricului (ex: dintr-o bază de date)
+    await message.answer("Funcția de istoric nu e implementată în demo. Revino cu /start sau alege altceva.")
 
+@router.message(F.text == "⚙️ Setări")
+async def settings_menu(message: types.Message):
+    user_context[message.from_user.id] = "setari"
+    await message.answer("Aici poți schimba limba, nivelul sau alte opțiuni. Scrie ce vrei să schimbi.")
+
+# Handler pentru POZE
+@router.message(F.photo)
+async def handle_photo(message: types.Message):
+    functie = user_context.get(message.from_user.id)
+    if functie == "verifica":
+        await message.answer("Am primit poza. Încep analiza temei (demo).")
+        user_context.pop(message.from_user.id, None)
+    elif functie == "ocr":
+        await message.answer("Extragem textul din poza (demo OCR).")
+        user_context.pop(message.from_user.id, None)
+    else:
+        await message.answer("Nu știu ce să fac cu poza. Alege o funcție din meniu sau scrie /start.")
+
+# Handler pentru TEXT
 @router.message()
-async def general_handler(message: types.Message):
-    # Salvare istoric scurt, adaptare la modul dorit
-    uid = message.from_user.id
-    user_history.setdefault(uid, []).append(message.text)
-    await message.answer("Am primit mesajul. Alege o funcție din meniu sau scrie /start.")
+async def handle_text(message: types.Message):
+    functie = user_context.get(message.from_user.id)
+    if functie == "explica":
+        await message.answer(f"Explicarea temei (demo): {message.text}")
+        user_context.pop(message.from_user.id, None)
+    elif functie == "verifica":
+        await message.answer(f"Verificarea temei (demo): {message.text}")
+        user_context.pop(message.from_user.id, None)
+    elif functie == "calendar":
+        await message.answer(f"Planificare în calendar (demo): {message.text}")
+        user_context.pop(message.from_user.id, None)
+    elif functie == "setari":
+        await message.answer(f"Setare modificată (demo): {message.text}")
+        user_context.pop(message.from_user.id, None)
+    elif functie == "cotidian":
+        await message.answer(f"Ajutor cotidian (demo): {message.text}")
+        user_context.pop(message.from_user.id, None)
+    else:
+        await message.answer("Am primit mesajul. Alege o funcție din meniu sau scrie /start.")
 
 async def main():
     bot = Bot(token=TELEGRAM_TOKEN)
