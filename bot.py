@@ -35,11 +35,11 @@ lang_kb = ReplyKeyboardMarkup(
 )
 
 user_lang = {}  # user_id: emoji языка
-router = Router()
 
-# ====== Контекстная история (если нужно) ======
-# user_history = {}  # user_id: list of messages
-MAX_CONTEXT = 5  # Сколько сообщений помнить (если включить user_history)
+user_history = {}  # user_id: list of messages (context)
+MAX_CONTEXT = 5    # сколько пар сообщений (вопрос+ответ) помнить
+
+router = Router()
 
 def get_sys_prompt(lang):
     return LANGUAGES[lang][1]
@@ -84,6 +84,8 @@ async def status(message: types.Message):
 @router.message(Command("start"))
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
+    # Очищаем историю диалога при старте (если не нужно — убери строку ниже)
+    user_history.pop(message.from_user.id, None)
     await message.answer(
         "Выберите язык / Alege limba / Choose language:",
         reply_markup=lang_kb
@@ -114,26 +116,22 @@ async def ask_groq(message: types.Message):
     # Ограничение FREE
     if not is_pro(user_id):
         if len(message.text) > 250:
-            await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro")
+            await message.answer("❗ Это доступно только для PRO пользователей. Для расширения возможностей напишите /pro")
             return
 
+    # === История для контекста ===
+    hist = user_history.setdefault(user_id, [])
+    # Добавляем текущий вопрос пользователя
+    hist.append({"role": "user", "content": message.text.strip()})
+    # Обрезаем историю, чтобы не росла бесконечно (храним MAX_CONTEXT*2 сообщений: вопрос+ответ)
+    if len(hist) > MAX_CONTEXT * 2:
+        hist = hist[-MAX_CONTEXT * 2 :]
+    user_history[user_id] = hist
+
+    # Формируем массив сообщений для LLM: system + история
     lang = user_lang.get(user_id, DEFAULT_LANG)
     sys_prompt = get_sys_prompt(lang)
-    prompt = message.text.strip()
-
-    # ==== Если нужен контекстный диалог, раскомментируй user_history выше и этот блок ====
-    # hist = user_history.setdefault(user_id, [])
-    # hist.append({"role": "user", "content": prompt})
-    # если нужно ограничить размер истории:
-    # if len(hist) > MAX_CONTEXT:
-    #     hist = hist[-MAX_CONTEXT:]
-    # user_history[user_id] = hist
-    # messages_for_groq = [{"role": "system", "content": sys_prompt}] + hist
-    # ======= иначе просто передаем 1 вопрос =========
-    messages_for_groq = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": prompt}
-    ]
+    messages_for_groq = [{"role": "system", "content": sys_prompt}] + hist
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -157,12 +155,12 @@ async def ask_groq(message: types.Message):
                 if resp.status == 200:
                     result = await resp.json()
                     answer = result["choices"][0]["message"]["content"]
+                    # Добавляем ответ ассистента в историю
+                    hist.append({"role": "assistant", "content": answer.strip()})
+                    if len(hist) > MAX_CONTEXT * 2:
+                        hist = hist[-MAX_CONTEXT * 2 :]
+                    user_history[user_id] = hist
                     await message.answer(answer.strip())
-                    # если используешь контекстный чат:
-                    # hist.append({"role": "assistant", "content": answer.strip()})
-                    # if len(hist) > MAX_CONTEXT:
-                    #     hist = hist[-MAX_CONTEXT:]
-                    # user_history[user_id] = hist
                 else:
                     err_text = await resp.text()
                     logging.error(f"Groq API error: {resp.status}, {err_text}")
