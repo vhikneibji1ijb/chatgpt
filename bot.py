@@ -36,7 +36,6 @@ LANGUAGES = {
 }
 DEFAULT_LANG = "🇷🇺 Русский"
 
-# Tastatura pentru alegerea limbii (la start/language)
 lang_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🇷🇴 Română")],
@@ -46,7 +45,16 @@ lang_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Tastatura cu "Chat nou" (după alegerea limbii, rămâne tot timpul)
+profile_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🔄 Schimbă limba")],
+        [KeyboardButton(text="💳 Cumpără PRO")],
+        [KeyboardButton(text="🆘 Ajutor administrator")],
+        [KeyboardButton(text="🆕 Chat nou")]
+    ],
+    resize_keyboard=True
+)
+
 chat_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🆕 Chat nou")]
@@ -54,7 +62,6 @@ chat_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Persistență pentru user_lang și user_history
 LANG_FILE = "user_lang.json"
 HIST_FILE = "user_history.json"
 
@@ -74,17 +81,16 @@ def save_json(filename, data):
 user_lang = load_json(LANG_FILE)
 user_history = load_json(HIST_FILE)
 
-MAX_CONTEXT = 5    # câte perechi întrebare+raspuns se păstrează
+MAX_CONTEXT = 5
 
 router = Router()
 
 def get_sys_prompt(lang):
     return LANGUAGES[lang][1]
 
-ADMIN_IDS = [6009593253]  # <-- pune aici user_id-ul tău Telegram
+ADMIN_IDS = [6009593253]
 
 def clean_star_lines(text):
-    # Elimină stelute/liniuțe/bullets la început de rând + spații
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
 @router.message(Command("pro"))
@@ -123,6 +129,96 @@ async def status(message: types.Message):
         await message.answer("У вас обычный доступ 🔘. Для расширенных возможностей напишите /pro")
 
 @router.message(Command("start"))
+async def start_handler(message: types.Message):
+    user_id = str(message.from_user.id)
+    if user_id not in user_lang:
+        await message.answer(
+            "Выберите язык / Alege limba / Choose language:",
+            reply_markup=lang_kb
+        )
+    else:
+        total_intrebari = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
+        tip_cont = "Pro" if is_pro(int(user_id)) else "Free"
+        limba = user_lang.get(user_id, DEFAULT_LANG)
+        profil = {
+            "nume": f"{message.from_user.full_name}",
+            "uid": f"#U{user_id}",
+            "reg": "2024-11-15",
+            "tip": tip_cont,
+            "intrebari": f"{total_intrebari}",
+            "status": "Activ",
+            "limba": limba,
+            "ultima": "N/A",
+            "tara": "🇲🇩 Moldova"
+        }
+        text = (
+            f"👤 <b>Nume Utilizator:</b> {profil['nume']}\n"
+            f"🆔 <b>ID Utilizator:</b> {profil['uid']}\n"
+            f"📆 <b>Data Înregistrării:</b> {profil['reg']}\n"
+            f"💼 <b>Tip Cont:</b> {profil['tip']}\n"
+            f"❓ <b>Total Întrebări:</b> {profil['intrebari']}\n"
+            f"✅ <b>Status:</b> {profil['status']}\n"
+            f"🌐 <b>Limba Preferată:</b> {profil['limba']}\n"
+            f"🕒 <b>Ultima Activitate:</b> {profil['ultima']}\n"
+            f"🌍 <b>Țara:</b> {profil['tara']}\n"
+        )
+        await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
+
+@router.message(lambda m: m.text in LANGUAGES)
+async def set_language(message: types.Message):
+    user_id = str(message.from_user.id)
+    user_lang[user_id] = message.text
+    save_json(LANG_FILE, user_lang)
+    # După setare limba, arată profilul direct!
+    total_intrebari = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
+    tip_cont = "Pro" if is_pro(int(user_id)) else "Free"
+    profil = {
+        "nume": f"{message.from_user.full_name}",
+        "uid": f"#U{user_id}",
+        "reg": "2024-11-15",
+        "tip": tip_cont,
+        "intrebari": f"{total_intrebari}",
+        "status": "Activ",
+        "limba": message.text,
+        "ultima": "N/A",
+        "tara": "🇲🇩 Moldova"
+    }
+    text = (
+        f"👤 <b>Nume Utilizator:</b> {profil['nume']}\n"
+        f"🆔 <b>ID Utilizator:</b> {profil['uid']}\n"
+        f"📆 <b>Data Înregistrării:</b> {profil['reg']}\n"
+        f"💼 <b>Tip Cont:</b> {profil['tip']}\n"
+        f"❓ <b>Total Întrebări:</b> {profil['intrebari']}\n"
+        f"✅ <b>Status:</b> {profil['status']}\n"
+        f"🌐 <b>Limba Preferată:</b> {profil['limba']}\n"
+        f"🕒 <b>Ultima Activitate:</b> {profil['ultima']}\n"
+        f"🌍 <b>Țara:</b> {profil['tara']}\n"
+    )
+    await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
+
+@router.message(lambda m: m.text == "🔄 Schimbă limba")
+async def show_langs(message: types.Message):
+    await message.answer("Alege limba dorită:", reply_markup=lang_kb)
+
+@router.message(lambda m: m.text == "🆘 Ajutor administrator")
+async def help_admin(message: types.Message):
+    await message.answer(
+        "Pentru a lua legătura cu un administrator, scrie pe Telegram: @adminusername\n"
+        "sau trimite un email la: admin@gmail.com"
+    )
+
+@router.message(lambda m: m.text == "🆕 Chat nou")
+async def new_chat_profile(message: types.Message):
+    user_id = str(message.from_user.id)
+    user_history.pop(user_id, None)
+    save_json(HIST_FILE, user_history)
+    await message.answer(
+        "Ai început un chat nou! Întreabă orice vrei.",
+        reply_markup=profile_kb
+    )
+
+# Poți adăuga aici handler pentru "💳 Cumpără PRO" când e gata funcția
+
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
     user_history.pop(str(message.from_user.id), None)
@@ -135,8 +231,7 @@ async def choose_language(message: types.Message):
     )
 
 @router.message(Command("newchat"))
-@router.message(lambda m: m.text and m.text.strip() == "🆕 Chat nou")
-async def new_chat(message: types.Message):
+async def new_chat_cmd(message: types.Message):
     user_history.pop(str(message.from_user.id), None)
     save_json(HIST_FILE, user_history)
     await message.answer(
@@ -144,24 +239,9 @@ async def new_chat(message: types.Message):
         reply_markup=chat_kb
     )
 
-@router.message(lambda m: m.text in LANGUAGES)
-async def set_language(message: types.Message):
-    user_lang[str(message.from_user.id)] = message.text
-    save_json(LANG_FILE, user_lang)
-    user_history.pop(str(message.from_user.id), None)
-    save_json(HIST_FILE, user_history)
-    greetings = {
-        "🇷🇴 Română": "Salut! Trimite-mi întrebarea ta.",
-        "🇷🇺 Русский": "Привет! Задай свой вопрос.",
-        "🇬🇧 English": "Hi! Please ask your question."
-    }
-    await message.answer(greetings[message.text], reply_markup=chat_kb)
-
 @router.message()
 async def ask_groq(message: types.Message):
     user_id = str(message.from_user.id)
-
-    # Dacă utilizatorul nu a ales limba - afișează tastatura de limbi
     if user_id not in user_lang:
         await message.answer(
             "Пожалуйста, выберите язык / Vă rugăm să alegeți limba / Please choose language:",
@@ -169,13 +249,11 @@ async def ask_groq(message: types.Message):
         )
         return
 
-    # Limita pentru utilizatorii FREE
     if not is_pro(int(user_id)):
         if len(message.text) > 250:
             await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro", reply_markup=chat_kb)
             return
 
-    # Butonul "Chat nou" - șterge istoria și păstrează butonul
     if message.text.strip() == "🆕 Chat nou":
         user_history.pop(user_id, None)
         save_json(HIST_FILE, user_history)
@@ -185,7 +263,6 @@ async def ask_groq(message: types.Message):
         )
         return
 
-    # Istoric pentru context
     hist = user_history.setdefault(user_id, [])
     hist.append({"role": "user", "content": message.text.strip()})
     if len(hist) > MAX_CONTEXT * 2:
