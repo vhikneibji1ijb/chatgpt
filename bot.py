@@ -4,6 +4,7 @@ import asyncio
 import re
 import json
 import datetime
+import pytesseract
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
