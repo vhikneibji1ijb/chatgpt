@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import re
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
@@ -21,15 +22,15 @@ logging.basicConfig(level=logging.INFO)
 LANGUAGES = {
     "🇷🇴 Română": (
         "ro",
-        "Răspunde doar în limba română. Scrie formulele matematice exact ca de mână pe caiet: folosește √ pentru radical, fracțiile scrie-le ca (numărător)/(numitor), de exemplu (a+b)/c sau (√3)/2, iar pentru puteri folosește caractere Unicode pentru exponenți (x², c⁵, aⁿ), nu simbolul ^. Nu folosi niciodată LaTeX, nici fracții suprapuse, nici simboluri speciale. Nu folosi bold, italics, stelute, markdown sau emoji."
+        "Răspunde doar în limba română. Scrie formulele matematice exact ca de mână pe caiet: folosește √ pentru radical, fracțiile scrie-le ca (numărător)/(numitor), de exemplu (a+b)/c sau (√3)/2, iar pentru puteri folosește caractere Unicode pentru exponenți (x², c⁵, aⁿ), nu simbolul ^. Nu folosi niciodată LaTeX, nici fracții suprapuse, nici simboluri speciale. Nu folosi bold, italics, stelute, markdown sau emoji. Scrie răspunsul ca un text continuu, nu folosi niciodată liste, stelute, buline, liniuțe, nici numerotare. Fiecare formulă sau pas se scrie pe un rând nou, fără alte simboluri la începutul rândului."
     ),
     "🇷🇺 Русский": (
         "ru",
-        "Отвечай только на русском языке. Записывай математические формулы так, как пишут от руки: √ для корня, дроби как (числитель)/(знаменатель), например (a+b)/c или (√3)/2, степени с помощью Unicode-символов (x², c⁵, aⁿ), не символ ^. Никогда не используй LaTeX, не пиши дроби вертикально и не используй специальные символы. Не используй жирный, курсив, звёздочки, markdown или эмодзи."
+        "Отвечай только на русском языке. Записывай математические формулы так, как пишут от руки: √ для корня, дроби как (числитель)/(знаменатель), например (a+b)/c или (√3)/2, степени с помощью Unicode-символов (x², c⁵, aⁿ), не символ ^. Никогда не используй LaTeX, не пиши дроби вертикально и не используй специальные символы. Не используй жирный, курсив, звёздочки, markdown или эмодзи. Пиши ответ как обычный текст, не используй никогда списки, звёздочки, буллиты, тире или нумерацию. Каждую формулу или шаг пиши на новой строке без символов в начале строки."
     ),
     "🇬🇧 English": (
         "en",
-        "Reply only in English. Write mathematical formulas as if written by hand: use √ for square root, fractions as (numerator)/(denominator), e.g., (a+b)/c or (√3)/2, and for powers use Unicode superscript characters for exponents (x², c⁵, aⁿ), not the ^ symbol. Never use LaTeX, stacked fractions, or special symbols. Do not use bold, italics, asterisks, markdown, or emojis."
+        "Reply only in English. Write mathematical formulas as if written by hand: use √ for square root, fractions as (numerator)/(denominator), e.g., (a+b)/c or (√3)/2, and for powers use Unicode superscript characters for exponents (x², c⁵, aⁿ), not the ^ symbol. Never use LaTeX, stacked fractions, or special symbols. Do not use bold, italics, asterisks, markdown, or emojis. Write the answer as plain text, never use lists, bullets, asterisks, dashes or numbering. Each formula or step should be written on a new line, with no symbols at the start of the line."
     ),
 }
 DEFAULT_LANG = "🇷🇺 Русский"
@@ -51,11 +52,13 @@ MAX_CONTEXT = 5    # сколько пар сообщений (вопрос+от
 router = Router()
 
 def get_sys_prompt(lang):
-    base = LANGUAGES[lang][1]
-    extra = " Scrie toate formulele matematice cât mai clar, folosind simbolurile adecvate sau LaTeX dacă nu se poate altfel. Nu folosi niciun fel de markdown, stelute, bold sau emoji."
-    return base + extra
+    return LANGUAGES[lang][1]
 
 ADMIN_IDS = [6009593253]  # <-- замените на свой Telegram user_id
+
+def clean_star_lines(text):
+    # Elimină stelute/liniuțe/bullets la început de rând + spații, dar nu atinge conținutul rândului
+    return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
@@ -115,7 +118,7 @@ async def set_language(message: types.Message):
 async def ask_groq(message: types.Message):
     user_id = message.from_user.id
 
-    # Если пользователь еще не выбрал язык — показываем клаву
+    # Dacă utilizatorul nu a ales limba - afișează tastatura
     if user_id not in user_lang:
         await message.answer(
             "Пожалуйста, выберите язык / Vă rugăm să alegeți limba / Please choose language:",
@@ -123,13 +126,13 @@ async def ask_groq(message: types.Message):
         )
         return
 
-    # Ограничение FREE
+    # Limita pentru utilizatorii FREE
     if not is_pro(user_id):
         if len(message.text) > 250:
             await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro")
             return
 
-    # === История для контекста ===
+    # Istoric pentru context
     hist = user_history.setdefault(user_id, [])
     hist.append({"role": "user", "content": message.text.strip()})
     if len(hist) > MAX_CONTEXT * 2:
@@ -162,11 +165,12 @@ async def ask_groq(message: types.Message):
                 if resp.status == 200:
                     result = await resp.json()
                     answer = result["choices"][0]["message"]["content"]
-                    hist.append({"role": "assistant", "content": answer.strip()})
+                    answer = clean_star_lines(answer.strip())
+                    hist.append({"role": "assistant", "content": answer})
                     if len(hist) > MAX_CONTEXT * 2:
                         hist = hist[-MAX_CONTEXT * 2 :]
                     user_history[user_id] = hist
-                    await message.answer(answer.strip())
+                    await message.answer(answer)
                 else:
                     err_text = await resp.text()
                     logging.error(f"Groq API error: {resp.status}, {err_text}")
