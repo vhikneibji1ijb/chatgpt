@@ -5,6 +5,9 @@ import re
 import json
 import datetime
 import pytesseract
+from PIL import Image
+from io import BytesIO
+from googletrans import Translator
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
