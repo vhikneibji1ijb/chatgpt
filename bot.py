@@ -21,15 +21,15 @@ logging.basicConfig(level=logging.INFO)
 LANGUAGES = {
     "🇷🇴 Română": (
         "ro",
-        "Răspunde doar în limba română. Când explici formule matematice, folosește simboluri matematice naturale: √ pentru radical, fracții cu / sau caractere Unicode (ex: ½), puteri cu ^ (ex: x^2). Pentru formule mai complexe, folosește LaTeX între delimitatori $...$ (ex: $\\frac{a}{b}$ sau $\\sqrt{a}$). Nu folosi bold, italics, stelute, markdown sau emoji."
+        "Răspunde doar în limba română. Când explici formule matematice, folosește simboluri matematice naturale: √ pentru radical, fracții cu / sau caractere Unicode (ex: ½), iar pentru puteri folosește caractere Unicode pentru exponenți (ex: x², c⁵, aⁿ), nu simbolul ^. Pentru formule mai complexe, folosește LaTeX între delimitatori $...$ (ex: $\\frac{a}{b}$, $\\sqrt{a}$, $c^2$). Nu folosi bold, italics, stelute, markdown sau emoji."
     ),
     "🇷🇺 Русский": (
         "ru",
-        "Отвечай только на русском языке. Для математических формул используй стандартные математические символы: √ для корня, дроби с помощью / или символов Юникода (например, ½), степени с помощью ^ (например, x^2). Для сложных формул используй LaTeX в пределах $...$ (например, $\\frac{a}{b}$ или $\\sqrt{a}$). Не используй жирный, курсив, звездочки, markdown или эмодзи."
+        "Отвечай только на русском языке. При объяснении математических формул используй стандартные математические символы: √ для корня, дроби с помощью / или символов Unicode (например, ½), а для степеней используй Unicode-символы для показателей степени (например, x², c⁵, aⁿ), не символ ^. Для сложных формул используй LaTeX между $...$ (например, $\\frac{a}{b}$, $\\sqrt{a}$, $c^2$). Не используй жирный, курсив, звёздочки, markdown или эмодзи."
     ),
     "🇬🇧 English": (
         "en",
-        "Reply only in English. When explaining math formulas, use standard math symbols: √ for square root, fractions with / or Unicode characters (e.g., ½), exponents with ^ (e.g., x^2). For complex formulas, use LaTeX between $...$ (for example, $\\frac{a}{b}$ or $\\sqrt{a}$). Do not use bold, italics, asterisks, markdown, or emojis."
+        "Reply only in English. When explaining mathematical formulas, use natural math symbols: √ for square root, fractions with / or Unicode characters (e.g., ½), and for powers use Unicode superscript characters for exponents (e.g., x², c⁵, aⁿ), not the ^ symbol. For more complex formulas, use LaTeX between $...$ (for example, $\\frac{a}{b}$, $\\sqrt{a}$, $c^2$). Do not use bold, italics, asterisks, markdown, or emojis."
     ),
 }
 DEFAULT_LANG = "🇷🇺 Русский"
