@@ -56,10 +56,6 @@ def get_sys_prompt(lang):
 
 ADMIN_IDS = [6009593253]  # <-- замените на свой Telegram user_id
 
-def clean_star_lines(text):
-    # Elimină stelute/liniuțe/bullets la început de rând + spații, dar nu atinge conținutul rândului
-    return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
-
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
     if message.from_user.id in ADMIN_IDS:
