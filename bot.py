@@ -19,9 +19,18 @@ if not TELEGRAM_TOKEN or not GROQ_API_KEY:
 logging.basicConfig(level=logging.INFO)
 
 LANGUAGES = {
-    "🇷🇴 Română": ("ro", "Ответь только на румынском языке, игнорируй другие языки."),
-    "🇷🇺 Русский": ("ru", "Отвечай только на русском языке, игнорируй другие языки."),
-    "🇬🇧 English": ("en", "Reply only in English, ignore all other languages."),
+    "🇷🇴 Română": (
+        "ro",
+        "Răspunde doar în limba română. Când explici formule matematice, folosește simboluri matematice naturale: √ pentru radical, fracții cu / sau caractere Unicode (ex: ½), puteri cu ^ (ex: x^2). Pentru formule mai complexe, folosește LaTeX între delimitatori $...$ (ex: $\\frac{a}{b}$ sau $\\sqrt{a}$). Nu folosi bold, italics, stelute, markdown sau emoji."
+    ),
+    "🇷🇺 Русский": (
+        "ru",
+        "Отвечай только на русском языке. Для математических формул используй стандартные математические символы: √ для корня, дроби с помощью / или символов Юникода (например, ½), степени с помощью ^ (например, x^2). Для сложных формул используй LaTeX в пределах $...$ (например, $\\frac{a}{b}$ или $\\sqrt{a}$). Не используй жирный, курсив, звездочки, markdown или эмодзи."
+    ),
+    "🇬🇧 English": (
+        "en",
+        "Reply only in English. When explaining math formulas, use standard math symbols: √ for square root, fractions with / or Unicode characters (e.g., ½), exponents with ^ (e.g., x^2). For complex formulas, use LaTeX between $...$ (for example, $\\frac{a}{b}$ or $\\sqrt{a}$). Do not use bold, italics, asterisks, markdown, or emojis."
+    ),
 }
 DEFAULT_LANG = "🇷🇺 Русский"
 
@@ -42,7 +51,9 @@ MAX_CONTEXT = 5    # сколько пар сообщений (вопрос+от
 router = Router()
 
 def get_sys_prompt(lang):
-    return LANGUAGES[lang][1]
+    base = LANGUAGES[lang][1]
+    extra = " Scrie toate formulele matematice cât mai clar, folosind simbolurile adecvate sau LaTeX dacă nu se poate altfel. Nu folosi niciun fel de markdown, stelute, bold sau emoji."
+    return base + extra
 
 ADMIN_IDS = [6009593253]  # <-- замените на свой Telegram user_id
 
@@ -84,7 +95,6 @@ async def status(message: types.Message):
 @router.message(Command("start"))
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
-    # Очищаем историю диалога при старте (если не нужно — убери строку ниже)
     user_history.pop(message.from_user.id, None)
     await message.answer(
         "Выберите язык / Alege limba / Choose language:",
@@ -116,19 +126,16 @@ async def ask_groq(message: types.Message):
     # Ограничение FREE
     if not is_pro(user_id):
         if len(message.text) > 250:
-            await message.answer("❗ Это доступно только для PRO пользователей. Для расширения возможностей напишите /pro")
+            await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro")
             return
 
     # === История для контекста ===
     hist = user_history.setdefault(user_id, [])
-    # Добавляем текущий вопрос пользователя
     hist.append({"role": "user", "content": message.text.strip()})
-    # Обрезаем историю, чтобы не росла бесконечно (храним MAX_CONTEXT*2 сообщений: вопрос+ответ)
     if len(hist) > MAX_CONTEXT * 2:
         hist = hist[-MAX_CONTEXT * 2 :]
     user_history[user_id] = hist
 
-    # Формируем массив сообщений для LLM: system + история
     lang = user_lang.get(user_id, DEFAULT_LANG)
     sys_prompt = get_sys_prompt(lang)
     messages_for_groq = [{"role": "system", "content": sys_prompt}] + hist
@@ -155,7 +162,6 @@ async def ask_groq(message: types.Message):
                 if resp.status == 200:
                     result = await resp.json()
                     answer = result["choices"][0]["message"]["content"]
-                    # Добавляем ответ ассистента в историю
                     hist.append({"role": "assistant", "content": answer.strip()})
                     if len(hist) > MAX_CONTEXT * 2:
                         hist = hist[-MAX_CONTEXT * 2 :]
