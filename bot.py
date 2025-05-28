@@ -2,6 +2,7 @@ import os
 import logging
 import asyncio
 import re
+import json
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
@@ -45,7 +46,7 @@ lang_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Tastatura cu "Chat nou" (după alegerea limbii)
+# Tastatura cu "Chat nou" (după alegerea limbii, rămâne tot timpul)
 chat_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🆕 Chat nou")]
@@ -53,20 +54,37 @@ chat_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-user_lang = {}  # user_id: emoji языка
+# Persistență pentru user_lang și user_history
+LANG_FILE = "user_lang.json"
+HIST_FILE = "user_history.json"
 
-user_history = {}  # user_id: list of messages (context)
-MAX_CONTEXT = 5    # сколько пар сообщений (вопрос+ответ) помнить
+def load_json(filename):
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except Exception:
+                return {}
+    return {}
+
+def save_json(filename, data):
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+user_lang = load_json(LANG_FILE)
+user_history = load_json(HIST_FILE)
+
+MAX_CONTEXT = 5    # câte perechi întrebare+raspuns se păstrează
 
 router = Router()
 
 def get_sys_prompt(lang):
     return LANGUAGES[lang][1]
 
-ADMIN_IDS = [6009593253]  # <-- замените на свой Telegram user_id
+ADMIN_IDS = [6009593253]  # <-- pune aici user_id-ul tău Telegram
 
 def clean_star_lines(text):
-    # Elimină stelute/liniuțe/bullets la început de rând + spații, dar nu atinge conținutul rândului
+    # Elimină stelute/liniuțe/bullets la început de rând + spații
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
 @router.message(Command("pro"))
@@ -107,7 +125,10 @@ async def status(message: types.Message):
 @router.message(Command("start"))
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
-    user_history.pop(message.from_user.id, None)
+    user_history.pop(str(message.from_user.id), None)
+    save_json(HIST_FILE, user_history)
+    user_lang.pop(str(message.from_user.id), None)
+    save_json(LANG_FILE, user_lang)
     await message.answer(
         "Выберите язык / Alege limba / Choose language:",
         reply_markup=lang_kb
@@ -116,7 +137,8 @@ async def choose_language(message: types.Message):
 @router.message(Command("newchat"))
 @router.message(lambda m: m.text and m.text.strip() == "🆕 Chat nou")
 async def new_chat(message: types.Message):
-    user_history.pop(message.from_user.id, None)
+    user_history.pop(str(message.from_user.id), None)
+    save_json(HIST_FILE, user_history)
     await message.answer(
         "Ai început un chat nou! Întreabă orice vrei.",
         reply_markup=chat_kb
@@ -124,18 +146,20 @@ async def new_chat(message: types.Message):
 
 @router.message(lambda m: m.text in LANGUAGES)
 async def set_language(message: types.Message):
-    user_lang[message.from_user.id] = message.text
+    user_lang[str(message.from_user.id)] = message.text
+    save_json(LANG_FILE, user_lang)
+    user_history.pop(str(message.from_user.id), None)
+    save_json(HIST_FILE, user_history)
     greetings = {
         "🇷🇴 Română": "Salut! Trimite-mi întrebarea ta.",
         "🇷🇺 Русский": "Привет! Задай свой вопрос.",
         "🇬🇧 English": "Hi! Please ask your question."
     }
-    # După alegerea limbii, arată doar butonul "Chat nou"
     await message.answer(greetings[message.text], reply_markup=chat_kb)
 
 @router.message()
 async def ask_groq(message: types.Message):
-    user_id = message.from_user.id
+    user_id = str(message.from_user.id)
 
     # Dacă utilizatorul nu a ales limba - afișează tastatura de limbi
     if user_id not in user_lang:
@@ -146,14 +170,15 @@ async def ask_groq(message: types.Message):
         return
 
     # Limita pentru utilizatorii FREE
-    if not is_pro(user_id):
+    if not is_pro(int(user_id)):
         if len(message.text) > 250:
-            await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro")
+            await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro", reply_markup=chat_kb)
             return
 
     # Butonul "Chat nou" - șterge istoria și păstrează butonul
     if message.text.strip() == "🆕 Chat nou":
         user_history.pop(user_id, None)
+        save_json(HIST_FILE, user_history)
         await message.answer(
             "Ai început un chat nou! Întreabă orice vrei.",
             reply_markup=chat_kb
@@ -166,6 +191,7 @@ async def ask_groq(message: types.Message):
     if len(hist) > MAX_CONTEXT * 2:
         hist = hist[-MAX_CONTEXT * 2 :]
     user_history[user_id] = hist
+    save_json(HIST_FILE, user_history)
 
     lang = user_lang.get(user_id, DEFAULT_LANG)
     sys_prompt = get_sys_prompt(lang)
@@ -198,6 +224,7 @@ async def ask_groq(message: types.Message):
                     if len(hist) > MAX_CONTEXT * 2:
                         hist = hist[-MAX_CONTEXT * 2 :]
                     user_history[user_id] = hist
+                    save_json(HIST_FILE, user_history)
                     await message.answer(answer, reply_markup=chat_kb)
                 else:
                     err_text = await resp.text()
