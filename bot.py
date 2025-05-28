@@ -10,6 +10,10 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 import aiohttp
+import pytesseract
+from PIL import Image
+from io import BytesIO
+from googletrans import Translator
 
 from pro_users import is_pro, set_pro, set_free
 
@@ -65,7 +69,8 @@ chat_kb = ReplyKeyboardMarkup(
 
 LANG_FILE = "user_lang.json"
 HIST_FILE = "user_history.json"
-REG_FILE = "user_reg.json"   # <-- Pentru data de inregistrare
+REG_FILE = "user_reg.json"
+OCR_TEXT_FILE = "user_ocr.json"
 
 def load_json(filename):
     if os.path.exists(filename):
@@ -82,11 +87,13 @@ def save_json(filename, data):
 
 user_lang = load_json(LANG_FILE)
 user_history = load_json(HIST_FILE)
-user_reg = load_json(REG_FILE)   # <-- Incarca datele de inregistrare
+user_reg = load_json(REG_FILE)
+user_ocr = load_json(OCR_TEXT_FILE)
 
 MAX_CONTEXT = 5
 
 router = Router()
+translator = Translator()
 
 def get_sys_prompt(lang):
     return LANGUAGES[lang][1]
@@ -96,10 +103,9 @@ ADMIN_IDS = [6009593253]
 def clean_star_lines(text):
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
-# Functie PROFIL cu data reala de inregistrare
+# Functie pentru profil (cu data reala de inregistrare)
 async def send_profile(message: types.Message):
     user_id = str(message.from_user.id)
-    # Salveaza data de inregistrare la prima interactiune
     if user_id not in user_reg:
         user_reg[user_id] = datetime.datetime.now().strftime("%Y-%m-%d")
         save_json(REG_FILE, user_reg)
@@ -130,6 +136,61 @@ async def send_profile(message: types.Message):
         f"🌍 <b>Țara:</b> {profil['tara']}\n"
     )
     await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
+
+# --- OCR & TRADUCERE IMAGINI ---
+@router.message(lambda m: m.content_type == "photo")
+async def handle_photo(message: types.Message):
+    user_id = str(message.from_user.id)
+    photo = message.photo[-1]
+    file = await message.bot.get_file(photo.file_id)
+    file_path = file.file_path
+    file_bytes = await message.bot.download_file(file_path)
+    image = Image.open(BytesIO(file_bytes.read()))
+
+    try:
+        extracted_text = pytesseract.image_to_string(image, lang="ron+eng+rus")
+    except Exception as e:
+        await message.reply("Eroare la recunoaștere text din imagine.")
+        return
+
+    if not extracted_text.strip():
+        await message.reply("Nu am putut extrage niciun text clar din această poză.")
+        return
+
+    user_ocr[user_id] = extracted_text
+    save_json(OCR_TEXT_FILE, user_ocr)
+
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🔎 Extrage problema matematică")],
+            [KeyboardButton(text="🌐 Tradu textul")]
+        ],
+        resize_keyboard=True
+    )
+    await message.reply(
+        f"Text extras din imagine:\n\n{extracted_text}\n\nCe vrei să fac cu acest text?",
+        reply_markup=kb
+    )
+
+@router.message(lambda m: m.text == "🌐 Tradu textul")
+async def translate_last_ocr(message: types.Message):
+    user_id = str(message.from_user.id)
+    user_ocr_text = user_ocr.get(user_id)
+    if not user_ocr_text:
+        await message.reply("Nu am text de tradus. Trimite o poză mai întâi.")
+        return
+    translation = translator.translate(user_ocr_text, dest="ro")
+    await message.reply(f"Traducere în română:\n\n{translation.text}")
+
+@router.message(lambda m: m.text == "🔎 Extrage problema matematică")
+async def analyze_math_problem(message: types.Message):
+    user_id = str(message.from_user.id)
+    user_ocr_text = user_ocr.get(user_id)
+    if not user_ocr_text:
+        await message.reply("Nu am text de analizat. Trimite o poză mai întâi.")
+        return
+    await message.reply(f"Problema matematică extrasă:\n\n{user_ocr_text}")
+    # Poți integra aici și trimiterea la AI pentru rezolvare automată dacă vrei
 
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
