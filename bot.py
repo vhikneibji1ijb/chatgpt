@@ -93,6 +93,36 @@ ADMIN_IDS = [6009593253]
 def clean_star_lines(text):
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
+# Functie pentru profil (ca sa fie mereu la fel)
+async def send_profile(message: types.Message):
+    user_id = str(message.from_user.id)
+    total_intrebari = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
+    tip_cont = "Pro" if is_pro(int(user_id)) else "Free"
+    limba = user_lang.get(user_id, DEFAULT_LANG)
+    profil = {
+        "nume": f"{message.from_user.full_name}",
+        "uid": f"#U{user_id}",
+        "reg": "2024-11-15",
+        "tip": tip_cont,
+        "intrebari": f"{total_intrebari}",
+        "status": "Activ",
+        "limba": limba,
+        "ultima": "N/A",
+        "tara": "🇲🇩 Moldova"
+    }
+    text = (
+        f"👤 <b>Nume Utilizator:</b> {profil['nume']}\n"
+        f"🆔 <b>ID Utilizator:</b> {profil['uid']}\n"
+        f"📆 <b>Data Înregistrării:</b> {profil['reg']}\n"
+        f"💼 <b>Tip Cont:</b> {profil['tip']}\n"
+        f"❓ <b>Total Întrebări:</b> {profil['intrebari']}\n"
+        f"✅ <b>Status:</b> {profil['status']}\n"
+        f"🌐 <b>Limba Preferată:</b> {profil['limba']}\n"
+        f"🕒 <b>Ultima Activitate:</b> {profil['ultima']}\n"
+        f"🌍 <b>Țara:</b> {profil['tara']}\n"
+    )
+    await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
+
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
     if message.from_user.id in ADMIN_IDS:
@@ -103,9 +133,10 @@ async def make_pro(message: types.Message):
             await message.answer(f"Пользователю {uid} выдан PRO на 30 дней.")
         else:
             set_pro(message.from_user.id)
-            await message.answer("Вам выдан PRO на 30 дней.")
+            await message.answer("V-a fost activat PRO pe 30 zile.")
+        await send_profile(message)
     else:
-        await message.answer("Обратитесь к администратору для получения PRO.")
+        await message.answer("Obratites k administratoru dlya polucheniya PRO.")
 
 @router.message(Command("free"))
 async def remove_pro(message: types.Message):
@@ -117,9 +148,10 @@ async def remove_pro(message: types.Message):
             await message.answer(f"У пользователя {uid} снят PRO.")
         else:
             set_free(message.from_user.id)
-            await message.answer("Ваш PRO снят.")
+            await message.answer("PRO a fost dezactivat.")
+        await send_profile(message)
     else:
-        await message.answer("Обратитесь к администратору.")
+        await message.answer("Obratites k administratoru.")
 
 @router.message(Command("status"))
 async def status(message: types.Message):
@@ -137,64 +169,14 @@ async def start_handler(message: types.Message):
             reply_markup=lang_kb
         )
     else:
-        total_intrebari = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
-        tip_cont = "Pro" if is_pro(int(user_id)) else "Free"
-        limba = user_lang.get(user_id, DEFAULT_LANG)
-        profil = {
-            "nume": f"{message.from_user.full_name}",
-            "uid": f"#U{user_id}",
-            "reg": "2024-11-15",
-            "tip": tip_cont,
-            "intrebari": f"{total_intrebari}",
-            "status": "Activ",
-            "limba": limba,
-            "ultima": "N/A",
-            "tara": "🇲🇩 Moldova"
-        }
-        text = (
-            f"👤 <b>Nume Utilizator:</b> {profil['nume']}\n"
-            f"🆔 <b>ID Utilizator:</b> {profil['uid']}\n"
-            f"📆 <b>Data Înregistrării:</b> {profil['reg']}\n"
-            f"💼 <b>Tip Cont:</b> {profil['tip']}\n"
-            f"❓ <b>Total Întrebări:</b> {profil['intrebari']}\n"
-            f"✅ <b>Status:</b> {profil['status']}\n"
-            f"🌐 <b>Limba Preferată:</b> {profil['limba']}\n"
-            f"🕒 <b>Ultima Activitate:</b> {profil['ultima']}\n"
-            f"🌍 <b>Țara:</b> {profil['tara']}\n"
-        )
-        await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
+        await send_profile(message)
 
 @router.message(lambda m: m.text in LANGUAGES)
 async def set_language(message: types.Message):
     user_id = str(message.from_user.id)
     user_lang[user_id] = message.text
     save_json(LANG_FILE, user_lang)
-    # După setare limba, arată profilul direct!
-    total_intrebari = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
-    tip_cont = "Pro" if is_pro(int(user_id)) else "Free"
-    profil = {
-        "nume": f"{message.from_user.full_name}",
-        "uid": f"#U{user_id}",
-        "reg": "2024-11-15",
-        "tip": tip_cont,
-        "intrebari": f"{total_intrebari}",
-        "status": "Activ",
-        "limba": message.text,
-        "ultima": "N/A",
-        "tara": "🇲🇩 Moldova"
-    }
-    text = (
-        f"👤 <b>Nume Utilizator:</b> {profil['nume']}\n"
-        f"🆔 <b>ID Utilizator:</b> {profil['uid']}\n"
-        f"📆 <b>Data Înregistrării:</b> {profil['reg']}\n"
-        f"💼 <b>Tip Cont:</b> {profil['tip']}\n"
-        f"❓ <b>Total Întrebări:</b> {profil['intrebari']}\n"
-        f"✅ <b>Status:</b> {profil['status']}\n"
-        f"🌐 <b>Limba Preferată:</b> {profil['limba']}\n"
-        f"🕒 <b>Ultima Activitate:</b> {profil['ultima']}\n"
-        f"🌍 <b>Țara:</b> {profil['tara']}\n"
-    )
-    await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
+    await send_profile(message)
 
 @router.message(lambda m: m.text == "🔄 Schimbă limba")
 async def show_langs(message: types.Message):
@@ -214,7 +196,7 @@ async def new_chat_profile(message: types.Message):
     save_json(HIST_FILE, user_history)
     await message.answer(
         "Ai început un chat nou! Întreabă orice vrei.",
-        reply_markup=chat_kb   # <--- DOAR Chat nou!
+        reply_markup=chat_kb   # Doar Chat nou!
     )
 
 # Poți adăuga aici handler pentru "💳 Cumpără PRO" când va fi nevoie
