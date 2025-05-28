@@ -5,14 +5,14 @@ DB_FILE = "pro_users.json"
 
 def load_db():
     try:
-        with open(DB_FILE) as f:
+        with open(DB_FILE, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
 
 def save_db(db):
-    with open(DB_FILE, "w") as f:
-        json.dump(db, f)
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
 
 def is_pro(user_id):
     db = load_db()
