@@ -3,6 +3,7 @@ import logging
 import asyncio
 import re
 import json
+import datetime
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
@@ -64,6 +65,7 @@ chat_kb = ReplyKeyboardMarkup(
 
 LANG_FILE = "user_lang.json"
 HIST_FILE = "user_history.json"
+REG_FILE = "user_reg.json"   # <-- Pentru data de inregistrare
 
 def load_json(filename):
     if os.path.exists(filename):
@@ -80,6 +82,7 @@ def save_json(filename, data):
 
 user_lang = load_json(LANG_FILE)
 user_history = load_json(HIST_FILE)
+user_reg = load_json(REG_FILE)   # <-- Incarca datele de inregistrare
 
 MAX_CONTEXT = 5
 
@@ -93,16 +96,21 @@ ADMIN_IDS = [6009593253]
 def clean_star_lines(text):
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
-# Functie pentru profil (ca sa fie mereu la fel)
+# Functie PROFIL cu data reala de inregistrare
 async def send_profile(message: types.Message):
     user_id = str(message.from_user.id)
+    # Salveaza data de inregistrare la prima interactiune
+    if user_id not in user_reg:
+        user_reg[user_id] = datetime.datetime.now().strftime("%Y-%m-%d")
+        save_json(REG_FILE, user_reg)
+    data_reg = user_reg.get(user_id, "N/A")
     total_intrebari = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
     tip_cont = "Pro" if is_pro(int(user_id)) else "Free"
     limba = user_lang.get(user_id, DEFAULT_LANG)
     profil = {
         "nume": f"{message.from_user.full_name}",
         "uid": f"#U{user_id}",
-        "reg": "2024-11-15",
+        "reg": data_reg,
         "tip": tip_cont,
         "intrebari": f"{total_intrebari}",
         "status": "Activ",
@@ -196,10 +204,8 @@ async def new_chat_profile(message: types.Message):
     save_json(HIST_FILE, user_history)
     await message.answer(
         "Ai început un chat nou! Întreabă orice vrei.",
-        reply_markup=chat_kb   # Doar Chat nou!
+        reply_markup=chat_kb
     )
-
-# Poți adăuga aici handler pentru "💳 Cumpără PRO" când va fi nevoie
 
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
