@@ -35,11 +35,19 @@ LANGUAGES = {
 }
 DEFAULT_LANG = "🇷🇺 Русский"
 
+# Tastatura pentru alegerea limbii (la start/language)
 lang_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🇷🇴 Română")],
         [KeyboardButton(text="🇷🇺 Русский")],
-        [KeyboardButton(text="🇬🇧 English")],
+        [KeyboardButton(text="🇬🇧 English")]
+    ],
+    resize_keyboard=True
+)
+
+# Tastatura cu "Chat nou" (după alegerea limbii)
+chat_kb = ReplyKeyboardMarkup(
+    keyboard=[
         [KeyboardButton(text="🆕 Chat nou")]
     ],
     resize_keyboard=True
@@ -111,7 +119,7 @@ async def new_chat(message: types.Message):
     user_history.pop(message.from_user.id, None)
     await message.answer(
         "Ai început un chat nou! Întreabă orice vrei.",
-        reply_markup=types.ReplyKeyboardRemove()
+        reply_markup=chat_kb
     )
 
 @router.message(lambda m: m.text in LANGUAGES)
@@ -122,13 +130,14 @@ async def set_language(message: types.Message):
         "🇷🇺 Русский": "Привет! Задай свой вопрос.",
         "🇬🇧 English": "Hi! Please ask your question."
     }
-    await message.answer(greetings[message.text], reply_markup=types.ReplyKeyboardRemove())
+    # După alegerea limbii, arată doar butonul "Chat nou"
+    await message.answer(greetings[message.text], reply_markup=chat_kb)
 
 @router.message()
 async def ask_groq(message: types.Message):
     user_id = message.from_user.id
 
-    # Dacă utilizatorul nu a ales limba - afișează tastatura
+    # Dacă utilizatorul nu a ales limba - afișează tastatura de limbi
     if user_id not in user_lang:
         await message.answer(
             "Пожалуйста, выберите язык / Vă rugăm să alegeți limba / Please choose language:",
@@ -142,12 +151,12 @@ async def ask_groq(message: types.Message):
             await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro")
             return
 
-    # Dacă utilizatorul vrea un chat nou și a scris text, ignorăm istoria veche
+    # Butonul "Chat nou" - șterge istoria și păstrează butonul
     if message.text.strip() == "🆕 Chat nou":
         user_history.pop(user_id, None)
         await message.answer(
             "Ai început un chat nou! Întreabă orice vrei.",
-            reply_markup=types.ReplyKeyboardRemove()
+            reply_markup=chat_kb
         )
         return
 
@@ -189,14 +198,14 @@ async def ask_groq(message: types.Message):
                     if len(hist) > MAX_CONTEXT * 2:
                         hist = hist[-MAX_CONTEXT * 2 :]
                     user_history[user_id] = hist
-                    await message.answer(answer)
+                    await message.answer(answer, reply_markup=chat_kb)
                 else:
                     err_text = await resp.text()
                     logging.error(f"Groq API error: {resp.status}, {err_text}")
-                    await message.answer("⚠️ Ошибка API. Попробуйте позже.")
+                    await message.answer("⚠️ Ошибка API. Попробуйте позже.", reply_markup=chat_kb)
         except Exception as e:
             logging.exception("Error contacting Groq API")
-            await message.answer("⚠️ Ошибка при обращении к API. Попробуйте позже.")
+            await message.answer("⚠️ Ошибка при обращении к API. Попробуйте позже.", reply_markup=chat_kb)
 
 async def main():
     bot = Bot(token=TELEGRAM_TOKEN)
