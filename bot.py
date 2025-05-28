@@ -4,10 +4,6 @@ import asyncio
 import re
 import json
 import datetime
-import pytesseract
-from PIL import Image
-from io import BytesIO
-from googletrans import Translator
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
@@ -107,7 +103,7 @@ ADMIN_IDS = [6009593253]
 def clean_star_lines(text):
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
-# Functie pentru profil (cu data reala de inregistrare)
+# --- Profil utilizator ---
 async def send_profile(message: types.Message):
     user_id = str(message.from_user.id)
     if user_id not in user_reg:
@@ -196,6 +192,7 @@ async def analyze_math_problem(message: types.Message):
     await message.reply(f"Problema matematică extrasă:\n\n{user_ocr_text}")
     # Poți integra aici și trimiterea la AI pentru rezolvare automată dacă vrei
 
+# --- Comenzi pentru administratori & utilizatori ---
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
     if message.from_user.id in ADMIN_IDS:
@@ -292,6 +289,7 @@ async def new_chat_cmd(message: types.Message):
         reply_markup=chat_kb
     )
 
+# --- Handler principal pentru întrebări ---
 @router.message()
 async def ask_groq(message: types.Message):
     user_id = str(message.from_user.id)
