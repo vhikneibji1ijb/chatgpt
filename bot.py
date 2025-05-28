@@ -22,15 +22,15 @@ logging.basicConfig(level=logging.INFO)
 LANGUAGES = {
     "🇷🇴 Română": (
         "ro",
-        "Răspunde doar în limba română. Scrie formulele matematice exact ca de mână pe caiet: folosește √ pentru radical, fracțiile scrie-le ca (numărător)/(numitor), de exemplu (a+b)/c sau (√3)/2, iar pentru puteri folosește caractere Unicode pentru exponenți (x², c⁵, aⁿ), nu simbolul ^. Nu folosi niciodată LaTeX, nici fracții suprapuse, nici simboluri speciale. Nu folosi bold, italics, stelute, markdown sau emoji."
+        "Răspunde doar în limba română. Scrie formulele matematice exact ca de mână pe caiet: folosește √ pentru radical, fracțiile scrie-le ca (numărător)/(numitor), de exemplu (a+b)/c sau (√3)/2, iar pentru puteri folosește caractere Unicode pentru exponenți (x², c⁵, aⁿ), nu simbolul ^. Nu folosi niciodată LaTeX, nici fracții suprapuse, nici simboluri speciale. Nu folosi bold, italics, stelute, markdown sau emoji. Scrie răspunsul ca un text continuu, nu folosi niciodată liste, stelute, buline, liniuțe, nici numerotare. Fiecare formulă sau pas se scrie pe un rând nou, fără alte simboluri la începutul rândului."
     ),
     "🇷🇺 Русский": (
         "ru",
-        "Отвечай только на русском языке. Записывай математические формулы так, как пишут от руки: √ для корня, дроби как (числитель)/(знаменатель), например (a+b)/c или (√3)/2, степени с помощью Unicode-символов (x², c⁵, aⁿ), не символ ^. Никогда не используй LaTeX, не пиши дроби вертикально и не используй специальные символы. Не используй жирный, курсив, звёздочки, markdown или эмодзи."
+        "Отвечай только на русском языке. Записывай математические формулы так, как пишут от руки: √ для корня, дроби как (числитель)/(знаменатель), например (a+b)/c или (√3)/2, степени с помощью Unicode-символов (x², c⁵, aⁿ), не символ ^. Никогда не используй LaTeX, не пиши дроби вертикально и не используй специальные символы. Не используй жирный, курсив, звёздочки, markdown или эмодзи. Пиши ответ как обычный текст, не используй никогда списки, звёздочки, буллиты, тире или нумерацию. Каждую формулу или шаг пиши на новой строке без символов в начале строки."
     ),
     "🇬🇧 English": (
         "en",
-        "Reply only in English. Write mathematical formulas as if written by hand: use √ for square root, fractions as (numerator)/(denominator), e.g., (a+b)/c or (√3)/2, and for powers use Unicode superscript characters for exponents (x², c⁵, aⁿ), not the ^ symbol. Never use LaTeX, stacked fractions, or special symbols. Do not use bold, italics, asterisks, markdown, or emojis."
+        "Reply only in English. Write mathematical formulas as if written by hand: use √ for square root, fractions as (numerator)/(denominator), e.g., (a+b)/c or (√3)/2, and for powers use Unicode superscript characters for exponents (x², c⁵, aⁿ), not the ^ symbol. Never use LaTeX, stacked fractions, or special symbols. Do not use bold, italics, asterisks, markdown, or emojis. Write the answer as plain text, never use lists, bullets, asterisks, dashes or numbering. Each formula or step should be written on a new line, with no symbols at the start of the line."
     ),
 }
 DEFAULT_LANG = "🇷🇺 Русский"
@@ -39,7 +39,8 @@ lang_kb = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🇷🇴 Română")],
         [KeyboardButton(text="🇷🇺 Русский")],
-        [KeyboardButton(text="🇬🇧 English")]
+        [KeyboardButton(text="🇬🇧 English")],
+        [KeyboardButton(text="🆕 Chat nou")]
     ],
     resize_keyboard=True
 )
@@ -55,6 +56,10 @@ def get_sys_prompt(lang):
     return LANGUAGES[lang][1]
 
 ADMIN_IDS = [6009593253]  # <-- замените на свой Telegram user_id
+
+def clean_star_lines(text):
+    # Elimină stelute/liniuțe/bullets la început de rând + spații, dar nu atinge conținutul rândului
+    return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
@@ -100,6 +105,15 @@ async def choose_language(message: types.Message):
         reply_markup=lang_kb
     )
 
+@router.message(Command("newchat"))
+@router.message(lambda m: m.text and m.text.strip() == "🆕 Chat nou")
+async def new_chat(message: types.Message):
+    user_history.pop(message.from_user.id, None)
+    await message.answer(
+        "Ai început un chat nou! Întreabă orice vrei.",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+
 @router.message(lambda m: m.text in LANGUAGES)
 async def set_language(message: types.Message):
     user_lang[message.from_user.id] = message.text
@@ -127,6 +141,15 @@ async def ask_groq(message: types.Message):
         if len(message.text) > 250:
             await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro")
             return
+
+    # Dacă utilizatorul vrea un chat nou și a scris text, ignorăm istoria veche
+    if message.text.strip() == "🆕 Chat nou":
+        user_history.pop(user_id, None)
+        await message.answer(
+            "Ai început un chat nou! Întreabă orice vrei.",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+        return
 
     # Istoric pentru context
     hist = user_history.setdefault(user_id, [])
