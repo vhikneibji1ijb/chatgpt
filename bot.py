@@ -34,13 +34,15 @@ lang_kb = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-user_lang = {}
+user_lang = {}  # user_id: emoji языка
 router = Router()
+
+# ====== Контекстная история (если нужно) ======
+# user_history = {}  # user_id: list of messages
+MAX_CONTEXT = 5  # Сколько сообщений помнить (если включить user_history)
 
 def get_sys_prompt(lang):
     return LANGUAGES[lang][1]
-
-# =============== PRO management ===============
 
 ADMIN_IDS = [6009593253]  # <-- замените на свой Telegram user_id
 
@@ -79,8 +81,6 @@ async def status(message: types.Message):
     else:
         await message.answer("У вас обычный доступ 🔘. Для расширенных возможностей напишите /pro")
 
-# =============== Языки ================
-
 @router.message(Command("start"))
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
@@ -99,21 +99,41 @@ async def set_language(message: types.Message):
     }
     await message.answer(greetings[message.text], reply_markup=types.ReplyKeyboardRemove())
 
-# =============== Основная логика ================
-
 @router.message()
 async def ask_groq(message: types.Message):
     user_id = message.from_user.id
 
-    # Пример ограничения: обычным нельзя отправлять больше 250 символов за раз
+    # Если пользователь еще не выбрал язык — показываем клаву
+    if user_id not in user_lang:
+        await message.answer(
+            "Пожалуйста, выберите язык / Vă rugăm să alegeți limba / Please choose language:",
+            reply_markup=lang_kb
+        )
+        return
+
+    # Ограничение FREE
     if not is_pro(user_id):
         if len(message.text) > 250:
-            await message.answer("❗ Это доступно только для PRO пользователей. Для расширения возможностей напишите /pro")
+            await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro")
             return
 
     lang = user_lang.get(user_id, DEFAULT_LANG)
     sys_prompt = get_sys_prompt(lang)
     prompt = message.text.strip()
+
+    # ==== Если нужен контекстный диалог, раскомментируй user_history выше и этот блок ====
+    # hist = user_history.setdefault(user_id, [])
+    # hist.append({"role": "user", "content": prompt})
+    # если нужно ограничить размер истории:
+    # if len(hist) > MAX_CONTEXT:
+    #     hist = hist[-MAX_CONTEXT:]
+    # user_history[user_id] = hist
+    # messages_for_groq = [{"role": "system", "content": sys_prompt}] + hist
+    # ======= иначе просто передаем 1 вопрос =========
+    messages_for_groq = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": prompt}
+    ]
 
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
@@ -121,10 +141,7 @@ async def ask_groq(message: types.Message):
     }
     data = {
         "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": prompt}
-        ],
+        "messages": messages_for_groq,
         "temperature": 0.7,
         "max_tokens": 1000
     }
@@ -141,6 +158,11 @@ async def ask_groq(message: types.Message):
                     result = await resp.json()
                     answer = result["choices"][0]["message"]["content"]
                     await message.answer(answer.strip())
+                    # если используешь контекстный чат:
+                    # hist.append({"role": "assistant", "content": answer.strip()})
+                    # if len(hist) > MAX_CONTEXT:
+                    #     hist = hist[-MAX_CONTEXT:]
+                    # user_history[user_id] = hist
                 else:
                     err_text = await resp.text()
                     logging.error(f"Groq API error: {resp.status}, {err_text}")
