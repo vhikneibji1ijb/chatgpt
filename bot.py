@@ -214,10 +214,10 @@ async def new_chat_profile(message: types.Message):
     save_json(HIST_FILE, user_history)
     await message.answer(
         "Ai început un chat nou! Întreabă orice vrei.",
-        reply_markup=profile_kb
+        reply_markup=chat_kb   # <--- DOAR Chat nou!
     )
 
-# Poți adăuga aici handler pentru "💳 Cumpără PRO" când e gata funcția
+# Poți adăuga aici handler pentru "💳 Cumpără PRO" când va fi nevoie
 
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
