@@ -104,19 +104,21 @@ def clean_star_lines(text):
 async def online_ocr_space(image_bytes, lang="eng"):
     api_url = "https://api.ocr.space/parse/image"
     headers = {
-        "apikey": "K86260492688957"  # <---- ЗАМЕНИТЬ на свой API-ключ с https://ocr.space/ocrapi
+        "apikey": "K86260492688957"  # <-- ВСТАВЬ СВОЙ API KEY
     }
     data = aiohttp.FormData()
     data.add_field("file", image_bytes, filename="image.jpg")
-    data.add_field("language", lang)  # "rus", "eng", "ron", "ukr" и т.д.
+    data.add_field("language", lang)
     data.add_field("isOverlayRequired", "false")
     data.add_field("OCREngine", "2")
     async with aiohttp.ClientSession() as session:
         async with session.post(api_url, data=data, headers=headers) as resp:
-            result = await resp.json()
             try:
+                result = await resp.json()
+                print("Ответ OCR.space:", result)
                 return result["ParsedResults"][0]["ParsedText"]
-            except Exception:
+            except Exception as e:
+                print("Ошибка при разборе ответа OCR:", e)
                 return None
 
 # --- Profil utilizator ---
@@ -157,16 +159,28 @@ async def send_profile(message: types.Message):
 @router.message(lambda m: m.content_type == "photo")
 async def handle_photo(message: types.Message):
     user_id = str(message.from_user.id)
-    photo = message.photo[-1]
-    file = await message.bot.get_file(photo.file_id)
-    file_path = file.file_path
-    file_bytes = await message.bot.download_file(file_path)
-    image_bytes = file_bytes.read()
-    # По умолчанию распознавем как русский — можно менять на "eng", "ron" и т.д.
-    extracted_text = await online_ocr_space(image_bytes, lang="rus")  
+    print("Фото получено!")  # Проверка, что handler сработал
+    try:
+        photo = message.photo[-1]
+        file = await message.bot.get_file(photo.file_id)
+        file_bytes = await message.bot.download_file(file.file_path)
+        image_bytes = file_bytes.read()
+    except Exception as e:
+        await message.reply(f"Ошибка при получении фото: {e}")
+        print("Ошибка при получении фото:", e)
+        return
+
+    try:
+        extracted_text = await online_ocr_space(image_bytes, lang="rus")
+        print("Результат OCR:", extracted_text)
+    except Exception as e:
+        await message.reply(f"Ошибка при обращении к OCR.space: {e}")
+        print("Ошибка при OCR:", e)
+        return
 
     if not extracted_text or not extracted_text.strip():
         await message.reply("Не удалось распознать текст через онлайн OCR :(")
+        print("Пустой результат OCR")
         return
 
     user_ocr[user_id] = extracted_text
@@ -183,6 +197,7 @@ async def handle_photo(message: types.Message):
         f"Текст, распознанный онлайн:\n\n{extracted_text}\n\nЧто сделать с этим текстом?",
         reply_markup=kb
     )
+    print("Кнопки отправлены пользователю")
 
 @router.message(lambda m: m.text == "🌐 Tradu textul")
 async def translate_last_ocr(message: types.Message):
@@ -191,8 +206,11 @@ async def translate_last_ocr(message: types.Message):
     if not user_ocr_text:
         await message.reply("Нет текста для перевода. Сначала пришли фото.")
         return
-    translation = translator.translate(user_ocr_text, dest="ro")
-    await message.reply(f"Traducere în română:\n\n{translation.text}")
+    try:
+        translation = translator.translate(user_ocr_text, dest="ro")
+        await message.reply(f"Traducere în română:\n\n{translation.text}")
+    except Exception as e:
+        await message.reply(f"Ошибка при переводе: {e}")
 
 @router.message(lambda m: m.text == "🔎 Extrage problema matematică")
 async def analyze_math_problem(message: types.Message):
@@ -380,7 +398,5 @@ async def main():
     dp.include_router(router)
     await dp.start_polling(bot)
 
-if __name__ == "__main__":
-    asyncio.run(main())
 if __name__ == "__main__":
     asyncio.run(main())
