@@ -1,8 +1,5 @@
 import os
 import logging
-import pytesseract
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-# остальной код...
 import asyncio
 import re
 import json
