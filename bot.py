@@ -36,31 +36,101 @@ LANGUAGES = {
         "If the user's question is about solving a mathematical problem or calculation, answer using formulas and clear steps as if written by hand: use √ for roots, fractions as (numerator)/(denominator), e.g., (a+b)/c or (√3)/2, and for powers use Unicode superscript characters (x², c⁵, aⁿ), not the ^ symbol. Never use LaTeX, stacked fractions, bold, italics, asterisks, markdown, or emojis. Write formulas on separate lines, with no symbols at the beginning. If the question is not about a specific math problem but rather about advice, theory, motivation, or learning methods, provide a clear, friendly, and detailed answer in regular text."
     ),
 }
-DEFAULT_LANG = "🇷🇺 Русский"
+DEFAULT_LANG = "🇷🇴 Română"
+
+MESSAGES = {
+    "choose_language": {
+        "ro": "Alege limba dorită:",
+        "ru": "Выберите язык:",
+        "en": "Choose your preferred language:"
+    },
+    "start_new_chat": {
+        "ro": "Ai început un chat nou! Întreabă orice vrei.",
+        "ru": "Вы начали новый чат! Задайте любой вопрос.",
+        "en": "You have started a new chat! Ask anything."
+    },
+    "no_ocr_text": {
+        "ro": "Nu am text de tradus. Trimite o poză mai întâi.",
+        "ru": "Нет текста для перевода. Сначала отправьте фото.",
+        "en": "No text to translate. Please send a photo first."
+    },
+    "ocr_fail": {
+        "ro": "Nu am putut recunoaște textul din imagine :(",
+        "ru": "Не удалось распознать текст через онлайн OCR :(",
+        "en": "Failed to recognize text from image :("
+    },
+    "send_photo": {
+        "ro": "Trimite o poză cu text.",
+        "ru": "Отправьте фото с текстом.",
+        "en": "Send a photo with text."
+    },
+    "profile_intro": {
+        "ro": "Profilul tău:",
+        "ru": "Ваш профиль:",
+        "en": "Your profile:"
+    },
+    "admin_help": {
+        "ro": "Pentru a lua legătura cu un administrator, scrie pe Telegram: @adminusername\nsau trimite un email la: admin@gmail.com",
+        "ru": "Для связи с администратором напишите в Telegram: @adminusername\nили на email: admin@gmail.com",
+        "en": "To contact an administrator, write on Telegram: @adminusername\nor send an email to: admin@gmail.com"
+    },
+    "choose_lang_cmd": {
+        "ro": "Alege limba dorită:",
+        "ru": "Выберите язык:",
+        "en": "Choose your preferred language:"
+    },
+    "pro_only": {
+        "ro": "❗ Aceasta este disponibil doar pentru utilizatorii PRO. Pentru funcționalități extinse, scrie /pro",
+        "ru": "❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro",
+        "en": "❗ This is only available for PRO users. For advanced features, type /pro"
+    }
+}
+
+BUTTONS = {
+    "new_chat": {
+        "ro": "🆕 Chat nou",
+        "ru": "🆕 Новый чат",
+        "en": "🆕 New chat"
+    },
+    "extract_math": {
+        "ro": "🔎 Extrage problema matematică",
+        "ru": "🔎 Извлечь задачу",
+        "en": "🔎 Extract math problem"
+    },
+    "translate_text": {
+        "ro": "🌐 Tradu textul",
+        "ru": "🌐 Перевести текст",
+        "en": "🌐 Translate text"
+    },
+    "change_language": {
+        "ro": "🔄 Schimbă limba",
+        "ru": "🔄 Сменить язык",
+        "en": "🔄 Change language"
+    },
+    "buy_pro": {
+        "ro": "💳 Cumpără PRO",
+        "ru": "💳 Купить PRO",
+        "en": "💳 Buy PRO"
+    },
+    "admin_help": {
+        "ro": "🆘 Ajutor administrator",
+        "ru": "🆘 Помощь администратора",
+        "en": "🆘 Admin help"
+    }
+}
+
+def get_lang_code(user_id):
+    user_lang_str = user_lang.get(user_id, DEFAULT_LANG)
+    return LANGUAGES[user_lang_str][0]
+
+def get_reply_kb(buttons, lang_code):
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=BUTTONS[btn][lang_code])] for btn in buttons],
+        resize_keyboard=True
+    )
 
 lang_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🇷🇴 Română")],
-        [KeyboardButton(text="🇷🇺 Русский")],
-        [KeyboardButton(text="🇬🇧 English")]
-    ],
-    resize_keyboard=True
-)
-
-profile_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🔄 Schimbă limba")],
-        [KeyboardButton(text="💳 Cumpără PRO")],
-        [KeyboardButton(text="🆘 Ajutor administrator")],
-        [KeyboardButton(text="🆕 Chat nou")]
-    ],
-    resize_keyboard=True
-)
-
-chat_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🆕 Chat nou")]
-    ],
+    keyboard=[[KeyboardButton(text=lang)] for lang in LANGUAGES.keys()],
     resize_keyboard=True
 )
 
@@ -100,11 +170,10 @@ ADMIN_IDS = [6009593253]
 def clean_star_lines(text):
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
-# --- ONLINE OCR через ocr.space ---
 async def online_ocr_space(image_bytes, lang="eng"):
     api_url = "https://api.ocr.space/parse/image"
     headers = {
-        "apikey": "K86260492688957"  # <-- ВСТАВЬ СВОЙ API KEY
+        "apikey": "K86260492688957"
     }
     data = aiohttp.FormData()
     data.add_field("file", image_bytes, filename="image.jpg")
@@ -121,45 +190,47 @@ async def online_ocr_space(image_bytes, lang="eng"):
                 print("Ошибка при разборе ответа OCR:", e)
                 return None
 
-# --- Profil utilizator ---
 async def send_profile(message: types.Message):
     user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
     if user_id not in user_reg:
         user_reg[user_id] = datetime.datetime.now().strftime("%Y-%m-%d")
         save_json(REG_FILE, user_reg)
     data_reg = user_reg.get(user_id, "N/A")
-    total_intrebari = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
-    tip_cont = "Pro" if is_pro(int(user_id)) else "Free"
-    limba = user_lang.get(user_id, DEFAULT_LANG)
-    profil = {
-        "nume": f"{message.from_user.full_name}",
+    total_questions = len(user_history.get(user_id, [])) // 2 if user_id in user_history else 0
+    account_type = "Pro" if is_pro(int(user_id)) else "Free"
+    lang = user_lang.get(user_id, DEFAULT_LANG)
+    profile = {
+        "name": f"{message.from_user.full_name}",
         "uid": f"#U{user_id}",
         "reg": data_reg,
-        "tip": tip_cont,
-        "intrebari": f"{total_intrebari}",
-        "status": "Activ",
-        "limba": limba,
-        "ultima": "N/A",
-        "tara": "🇲🇩 Moldova"
+        "type": account_type,
+        "questions": f"{total_questions}",
+        "status": "Active",
+        "lang": lang,
+        "last": "N/A",
+        "country": "🇲🇩 Moldova"
     }
     text = (
-        f"👤 <b>Nume Utilizator:</b> {profil['nume']}\n"
-        f"🆔 <b>ID Utilizator:</b> {profil['uid']}\n"
-        f"📆 <b>Data Înregistrării:</b> {profil['reg']}\n"
-        f"💼 <b>Tip Cont:</b> {profil['tip']}\n"
-        f"❓ <b>Total Întrebări:</b> {profil['intrebari']}\n"
-        f"✅ <b>Status:</b> {profil['status']}\n"
-        f"🌐 <b>Limba Preferată:</b> {profil['limba']}\n"
-        f"🕒 <b>Ultima Activitate:</b> {profil['ultima']}\n"
-        f"🌍 <b>Țara:</b> {profil['tara']}\n"
+        f"{MESSAGES['profile_intro'][lang_code]}\n"
+        f"👤 <b>{profile['name']}</b>\n"
+        f"🆔 {profile['uid']}\n"
+        f"📆 {profile['reg']}\n"
+        f"💼 {profile['type']}\n"
+        f"❓ {profile['questions']}\n"
+        f"✅ {profile['status']}\n"
+        f"🌐 {profile['lang']}\n"
+        f"🕒 {profile['last']}\n"
+        f"🌍 {profile['country']}\n"
     )
-    await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
+    kb = get_reply_kb(["change_language", "buy_pro", "admin_help", "new_chat"], lang_code)
+    await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
-# --- OCR & TRADUCERE IMAGINI через онлайн сервис ---
 @router.message(lambda m: m.content_type == "photo")
 async def handle_photo(message: types.Message):
     user_id = str(message.from_user.id)
-    print("Фото получено!")  # Проверка, что handler сработал
+    lang_code = get_lang_code(user_id)
+    print("Фото получено!")
     try:
         photo = message.photo[-1]
         file = await message.bot.get_file(photo.file_id)
@@ -171,7 +242,7 @@ async def handle_photo(message: types.Message):
         return
 
     try:
-        extracted_text = await online_ocr_space(image_bytes, lang="rus")
+        extracted_text = await online_ocr_space(image_bytes, lang=lang_code)
         print("Результат OCR:", extracted_text)
     except Exception as e:
         await message.reply(f"Ошибка при обращении к OCR.space: {e}")
@@ -179,53 +250,49 @@ async def handle_photo(message: types.Message):
         return
 
     if not extracted_text or not extracted_text.strip():
-        await message.reply("Не удалось распознать текст через онлайн OCR :(")
+        await message.reply(MESSAGES["ocr_fail"][lang_code])
         print("Пустой результат OCR")
         return
 
     user_ocr[user_id] = extracted_text
     save_json(OCR_TEXT_FILE, user_ocr)
 
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🔎 Extrage problema matematică")],
-            [KeyboardButton(text="🌐 Tradu textul")]
-        ],
-        resize_keyboard=True
-    )
+    kb = get_reply_kb(["extract_math", "translate_text"], lang_code)
     await message.reply(
-        f"Текст, распознанный онлайн:\n\n{extracted_text}\n\nЧто сделать с этим текстом?",
+        f"{MESSAGES['send_photo'][lang_code]}\n\n{extracted_text}\n\n",
         reply_markup=kb
     )
     print("Кнопки отправлены пользователю")
 
-@router.message(lambda m: m.text == "🌐 Tradu textul")
+@router.message(lambda m: m.text in [BUTTONS["translate_text"][l] for l in BUTTONS["translate_text"].keys()])
 async def translate_last_ocr(message: types.Message):
     user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
     user_ocr_text = user_ocr.get(user_id)
     if not user_ocr_text:
-        await message.reply("Нет текста для перевода. Сначала пришли фото.")
+        await message.reply(MESSAGES["no_ocr_text"][lang_code])
         return
     try:
-        translation = translator.translate(user_ocr_text, dest="ro")
-        await message.reply(f"Traducere în română:\n\n{translation.text}")
+        translation = translator.translate(user_ocr_text, dest=lang_code)
+        await message.reply(f"{translation.text}")
     except Exception as e:
         await message.reply(f"Ошибка при переводе: {e}")
 
-@router.message(lambda m: m.text == "🔎 Extrage problema matematică")
+@router.message(lambda m: m.text in [BUTTONS["extract_math"][l] for l in BUTTONS["extract_math"].keys()])
 async def analyze_math_problem(message: types.Message):
     user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
     user_ocr_text = user_ocr.get(user_id)
     if not user_ocr_text:
-        await message.reply("Нет текста для анализа. Сначала пришли фото.")
+        await message.reply(MESSAGES["no_ocr_text"][lang_code])
         return
-    await message.reply(f"Проблема, извлечённая из текста:\n\n{user_ocr_text}")
-    # Можно интегрировать сюда отправку запроса к AI для решения
+    await message.reply(f"{user_ocr_text}")
 
-# --- Команды для админов и пользователей ---
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
-    if message.from_user.id in ADMIN_IDS:
+    user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
+    if user_id in ADMIN_IDS:
         parts = message.text.split()
         if len(parts) >= 2:
             uid = int(parts[1])
@@ -233,14 +300,16 @@ async def make_pro(message: types.Message):
             await message.answer(f"Пользователю {uid} выдан PRO на 30 дней.")
         else:
             set_pro(message.from_user.id)
-            await message.answer("V-a fost activat PRO pe 30 zile.")
+            await message.answer("Вам выдан PRO на 30 дней.")
         await send_profile(message)
     else:
         await message.answer("Обратитесь к администратору для получения PRO.")
 
 @router.message(Command("free"))
 async def remove_pro(message: types.Message):
-    if message.from_user.id in ADMIN_IDS:
+    user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
+    if user_id in ADMIN_IDS:
         parts = message.text.split()
         if len(parts) >= 2:
             uid = int(parts[1])
@@ -248,13 +317,14 @@ async def remove_pro(message: types.Message):
             await message.answer(f"У пользователя {uid} снят PRO.")
         else:
             set_free(message.from_user.id)
-            await message.answer("PRO a fost dezactivat.")
+            await message.answer("PRO был отключён.")
         await send_profile(message)
     else:
         await message.answer("Обратитесь к администратору.")
 
 @router.message(Command("status"))
 async def status(message: types.Message):
+    lang_code = get_lang_code(str(message.from_user.id))
     if is_pro(message.from_user.id):
         await message.answer("У вас PRO-доступ 🟢")
     else:
@@ -263,11 +333,9 @@ async def status(message: types.Message):
 @router.message(Command("start"))
 async def start_handler(message: types.Message):
     user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
     if user_id not in user_lang:
-        await message.answer(
-            "Выберите язык / Alege limba / Choose language:",
-            reply_markup=lang_kb
-        )
+        await message.answer(MESSAGES["choose_language"][lang_code], reply_markup=lang_kb)
     else:
         await send_profile(message)
 
@@ -278,69 +346,75 @@ async def set_language(message: types.Message):
     save_json(LANG_FILE, user_lang)
     await send_profile(message)
 
-@router.message(lambda m: m.text == "🔄 Schimbă limba")
+@router.message(lambda m: m.text in [BUTTONS["change_language"][l] for l in BUTTONS["change_language"].keys()])
 async def show_langs(message: types.Message):
-    await message.answer("Alege limba dorită:", reply_markup=lang_kb)
+    lang_code = get_lang_code(str(message.from_user.id))
+    await message.answer(MESSAGES["choose_language"][lang_code], reply_markup=lang_kb)
 
-@router.message(lambda m: m.text == "🆘 Ajutor administrator")
+@router.message(lambda m: m.text in [BUTTONS["admin_help"][l] for l in BUTTONS["admin_help"].keys()])
 async def help_admin(message: types.Message):
-    await message.answer(
-        "Pentru a lua legătura cu un administrator, scrie pe Telegram: @adminusername\n"
-        "sau trimite un email la: admin@gmail.com"
-    )
+    lang_code = get_lang_code(str(message.from_user.id))
+    await message.answer(MESSAGES["admin_help"][lang_code])
 
-@router.message(lambda m: m.text == "🆕 Chat nou")
+@router.message(lambda m: m.text in [BUTTONS["new_chat"][l] for l in BUTTONS["new_chat"].keys()])
 async def new_chat_profile(message: types.Message):
     user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
     user_history.pop(user_id, None)
     save_json(HIST_FILE, user_history)
+    kb = get_reply_kb(["new_chat"], lang_code)
     await message.answer(
-        "Ai început un chat nou! Întreabă orice vrei.",
-        reply_markup=chat_kb
+        MESSAGES["start_new_chat"][lang_code],
+        reply_markup=kb
     )
 
 @router.message(Command("language"))
 async def choose_language(message: types.Message):
-    user_history.pop(str(message.from_user.id), None)
+    user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
+    user_history.pop(user_id, None)
     save_json(HIST_FILE, user_history)
-    user_lang.pop(str(message.from_user.id), None)
+    user_lang.pop(user_id, None)
     save_json(LANG_FILE, user_lang)
     await message.answer(
-        "Выберите язык / Alege limba / Choose language:",
+        MESSAGES["choose_lang_cmd"][lang_code],
         reply_markup=lang_kb
     )
 
 @router.message(Command("newchat"))
 async def new_chat_cmd(message: types.Message):
-    user_history.pop(str(message.from_user.id), None)
+    user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
+    user_history.pop(user_id, None)
     save_json(HIST_FILE, user_history)
+    kb = get_reply_kb(["new_chat"], lang_code)
     await message.answer(
-        "Ai început un chat nou! Întreabă orice vrei.",
-        reply_markup=chat_kb
+        MESSAGES["start_new_chat"][lang_code],
+        reply_markup=kb
     )
 
-# --- Handler principal pentru întrebări ---
 @router.message()
 async def ask_groq(message: types.Message):
     user_id = str(message.from_user.id)
+    lang_code = get_lang_code(user_id)
     if user_id not in user_lang:
         await message.answer(
-            "Пожалуйста, выберите язык / Vă rugăm să alegeți limba / Please choose language:",
+            MESSAGES["choose_language"][lang_code],
             reply_markup=lang_kb
         )
         return
 
     if not is_pro(int(user_id)):
         if len(message.text) > 250:
-            await message.answer("❗ Это доступно только для PRO пользователей. Для расширенных возможностей напишите /pro", reply_markup=chat_kb)
+            await message.answer(MESSAGES["pro_only"][lang_code], reply_markup=get_reply_kb(["new_chat"], lang_code))
             return
 
-    if message.text.strip() == "🆕 Chat nou":
+    if message.text.strip() in [BUTTONS["new_chat"][l] for l in BUTTONS["new_chat"].keys()]:
         user_history.pop(user_id, None)
         save_json(HIST_FILE, user_history)
         await message.answer(
-            "Ai început un chat nou! Întreabă orice vrei.",
-            reply_markup=chat_kb
+            MESSAGES["start_new_chat"][lang_code],
+            reply_markup=get_reply_kb(["new_chat"], lang_code)
         )
         return
 
@@ -383,14 +457,14 @@ async def ask_groq(message: types.Message):
                         hist = hist[-MAX_CONTEXT * 2 :]
                     user_history[user_id] = hist
                     save_json(HIST_FILE, user_history)
-                    await message.answer(answer, reply_markup=chat_kb)
+                    await message.answer(answer, reply_markup=get_reply_kb(["new_chat"], lang_code))
                 else:
                     err_text = await resp.text()
                     logging.error(f"Groq API error: {resp.status}, {err_text}")
-                    await message.answer("⚠️ Ошибка API. Попробуйте позже.", reply_markup=chat_kb)
+                    await message.answer("⚠️ Ошибка API. Попробуйте позже.", reply_markup=get_reply_kb(["new_chat"], lang_code))
         except Exception as e:
             logging.exception("Error contacting Groq API")
-            await message.answer("⚠️ Ошибка при обращении к API. Попробуйте позже.", reply_markup=chat_kb)
+            await message.answer("⚠️ Ошибка при обращении к API. Попробуйте позже.", reply_markup=get_reply_kb(["new_chat"], lang_code))
 
 async def main():
     bot = Bot(token=TELEGRAM_TOKEN)
