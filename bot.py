@@ -10,9 +10,6 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 import aiohttp
-import pytesseract
-from PIL import Image
-from io import BytesIO
 from googletrans import Translator
 
 from pro_users import is_pro, set_pro, set_free
@@ -103,6 +100,25 @@ ADMIN_IDS = [6009593253]
 def clean_star_lines(text):
     return re.sub(r'^[\*\-\•\u2022]\s*', '', text, flags=re.MULTILINE)
 
+# --- ONLINE OCR через ocr.space ---
+async def online_ocr_space(image_bytes, lang="eng"):
+    api_url = "https://api.ocr.space/parse/image"
+    headers = {
+        "apikey": "K86260492688957"  # <---- ЗАМЕНИТЬ на свой API-ключ с https://ocr.space/ocrapi
+    }
+    data = aiohttp.FormData()
+    data.add_field("file", image_bytes, filename="image.jpg")
+    data.add_field("language", lang)  # "rus", "eng", "ron", "ukr" и т.д.
+    data.add_field("isOverlayRequired", "false")
+    data.add_field("OCREngine", "2")
+    async with aiohttp.ClientSession() as session:
+        async with session.post(api_url, data=data, headers=headers) as resp:
+            result = await resp.json()
+            try:
+                return result["ParsedResults"][0]["ParsedText"]
+            except Exception:
+                return None
+
 # --- Profil utilizator ---
 async def send_profile(message: types.Message):
     user_id = str(message.from_user.id)
@@ -137,7 +153,7 @@ async def send_profile(message: types.Message):
     )
     await message.answer(text, reply_markup=profile_kb, parse_mode="HTML")
 
-# --- OCR & TRADUCERE IMAGINI ---
+# --- OCR & TRADUCERE IMAGINI через онлайн сервис ---
 @router.message(lambda m: m.content_type == "photo")
 async def handle_photo(message: types.Message):
     user_id = str(message.from_user.id)
@@ -145,16 +161,12 @@ async def handle_photo(message: types.Message):
     file = await message.bot.get_file(photo.file_id)
     file_path = file.file_path
     file_bytes = await message.bot.download_file(file_path)
-    image = Image.open(BytesIO(file_bytes.read()))
+    image_bytes = file_bytes.read()
+    # По умолчанию распознавем как русский — можно менять на "eng", "ron" и т.д.
+    extracted_text = await online_ocr_space(image_bytes, lang="rus")  
 
-    try:
-        extracted_text = pytesseract.image_to_string(image, lang="ron+eng+rus")
-    except Exception as e:
-        await message.reply("Eroare la recunoaștere text din imagine.")
-        return
-
-    if not extracted_text.strip():
-        await message.reply("Nu am putut extrage niciun text clar din această poză.")
+    if not extracted_text or not extracted_text.strip():
+        await message.reply("Не удалось распознать текст через онлайн OCR :(")
         return
 
     user_ocr[user_id] = extracted_text
@@ -168,7 +180,7 @@ async def handle_photo(message: types.Message):
         resize_keyboard=True
     )
     await message.reply(
-        f"Text extras din imagine:\n\n{extracted_text}\n\nCe vrei să fac cu acest text?",
+        f"Текст, распознанный онлайн:\n\n{extracted_text}\n\nЧто сделать с этим текстом?",
         reply_markup=kb
     )
 
@@ -177,7 +189,7 @@ async def translate_last_ocr(message: types.Message):
     user_id = str(message.from_user.id)
     user_ocr_text = user_ocr.get(user_id)
     if not user_ocr_text:
-        await message.reply("Nu am text de tradus. Trimite o poză mai întâi.")
+        await message.reply("Нет текста для перевода. Сначала пришли фото.")
         return
     translation = translator.translate(user_ocr_text, dest="ro")
     await message.reply(f"Traducere în română:\n\n{translation.text}")
@@ -187,12 +199,12 @@ async def analyze_math_problem(message: types.Message):
     user_id = str(message.from_user.id)
     user_ocr_text = user_ocr.get(user_id)
     if not user_ocr_text:
-        await message.reply("Nu am text de analizat. Trimite o poză mai întâi.")
+        await message.reply("Нет текста для анализа. Сначала пришли фото.")
         return
-    await message.reply(f"Problema matematică extrasă:\n\n{user_ocr_text}")
-    # Poți integra aici și trimiterea la AI pentru rezolvare automată dacă vrei
+    await message.reply(f"Проблема, извлечённая из текста:\n\n{user_ocr_text}")
+    # Можно интегрировать сюда отправку запроса к AI для решения
 
-# --- Comenzi pentru administratori & utilizatori ---
+# --- Команды для админов и пользователей ---
 @router.message(Command("pro"))
 async def make_pro(message: types.Message):
     if message.from_user.id in ADMIN_IDS:
@@ -206,7 +218,7 @@ async def make_pro(message: types.Message):
             await message.answer("V-a fost activat PRO pe 30 zile.")
         await send_profile(message)
     else:
-        await message.answer("Obratites k administratoru dlya polucheniya PRO.")
+        await message.answer("Обратитесь к администратору для получения PRO.")
 
 @router.message(Command("free"))
 async def remove_pro(message: types.Message):
@@ -221,7 +233,7 @@ async def remove_pro(message: types.Message):
             await message.answer("PRO a fost dezactivat.")
         await send_profile(message)
     else:
-        await message.answer("Obratites k administratoru.")
+        await message.answer("Обратитесь к администратору.")
 
 @router.message(Command("status"))
 async def status(message: types.Message):
@@ -368,5 +380,7 @@ async def main():
     dp.include_router(router)
     await dp.start_polling(bot)
 
+if __name__ == "__main__":
+    asyncio.run(main())
 if __name__ == "__main__":
     asyncio.run(main())
