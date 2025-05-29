@@ -36,7 +36,7 @@ LANGUAGES = {
         "If the user's question is about solving a mathematical problem or calculation, answer using formulas and clear steps as if written by hand: use √ for roots, fractions as (numerator)/(denominator), e.g., (a+b)/c or (√3)/2, and for powers use Unicode superscript characters (x², c⁵, aⁿ), not the ^ symbol. Never use LaTeX, stacked fractions, bold, italics, asterisks, markdown, or emojis. Write formulas on separate lines, with no symbols at the beginning. If the question is not about a specific math problem but rather about advice, theory, motivation, or learning methods, provide a clear, friendly, and detailed answer in regular text."
     ),
 }
-DEFAULT_LANG = "🇷🇴 Română"
+DEFAULT_LANG = "🇷🇺 Русский"
 
 MESSAGES = {
     "choose_language": {
@@ -85,7 +85,53 @@ MESSAGES = {
         "en": "❗ This is only available for PRO users. For advanced features, type /pro"
     }
 }
-
+PROFILE_FIELDS = {
+    "name": {
+        "ro": "👤 Nume utilizator",
+        "ru": "👤 Имя пользователя",
+        "en": "👤 User name"
+    },
+    "uid": {
+        "ro": "🆔 ID utilizator",
+        "ru": "🆔 ID пользователя",
+        "en": "🆔 User ID"
+    },
+    "reg": {
+        "ro": "📆 Data Înregistrării",
+        "ru": "📆 Дата регистрации",
+        "en": "📆 Registration date"
+    },
+    "type": {
+        "ro": "💼 Tip cont",
+        "ru": "💼 Тип аккаунта",
+        "en": "💼 Account type"
+    },
+    "questions": {
+        "ro": "❓ Total întrebări",
+        "ru": "❓ Всего вопросов",
+        "en": "❓ Total questions"
+    },
+    "status": {
+        "ro": "✅ Status",
+        "ru": "✅ Статус",
+        "en": "✅ Status"
+    },
+    "lang": {
+        "ro": "🌐 Limba preferată",
+        "ru": "🌐 Язык",
+        "en": "🌐 Language"
+    },
+    "last": {
+        "ro": "🕒 Ultima activitate",
+        "ru": "🕒 Последняя активность",
+        "en": "🕒 Last activity"
+    },
+    "country": {
+        "ro": "🌍 Țara",
+        "ru": "🌍 Страна",
+        "en": "🌍 Country"
+    }
+}
 BUTTONS = {
     "new_chat": {
         "ro": "🆕 Chat nou",
@@ -118,17 +164,14 @@ BUTTONS = {
         "en": "🆘 Admin help"
     }
 }
-
 def get_lang_code(user_id):
     user_lang_str = user_lang.get(user_id, DEFAULT_LANG)
     return LANGUAGES[user_lang_str][0]
-
 def get_reply_kb(buttons, lang_code):
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text=BUTTONS[btn][lang_code])] for btn in buttons],
         resize_keyboard=True
     )
-
 lang_kb = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text=lang)] for lang in LANGUAGES.keys()],
     resize_keyboard=True
@@ -213,15 +256,15 @@ async def send_profile(message: types.Message):
     }
     text = (
         f"{MESSAGES['profile_intro'][lang_code]}\n"
-        f"👤 <b>{profile['name']}</b>\n"
-        f"🆔 {profile['uid']}\n"
-        f"📆 {profile['reg']}\n"
-        f"💼 {profile['type']}\n"
-        f"❓ {profile['questions']}\n"
-        f"✅ {profile['status']}\n"
-        f"🌐 {profile['lang']}\n"
-        f"🕒 {profile['last']}\n"
-        f"🌍 {profile['country']}\n"
+        f"{PROFILE_FIELDS['name'][lang_code]}: {profile['name']}\n"
+        f"{PROFILE_FIELDS['uid'][lang_code]}: {profile['uid']}\n"
+        f"{PROFILE_FIELDS['reg'][lang_code]}: {profile['reg']}\n"
+        f"{PROFILE_FIELDS['type'][lang_code]}: {profile['type']}\n"
+        f"{PROFILE_FIELDS['questions'][lang_code]}: {profile['questions']}\n"
+        f"{PROFILE_FIELDS['status'][lang_code]}: {profile['status']}\n"
+        f"{PROFILE_FIELDS['lang'][lang_code]}: {profile['lang']}\n"
+        f"{PROFILE_FIELDS['last'][lang_code]}: {profile['last']}\n"
+        f"{PROFILE_FIELDS['country'][lang_code]}: {profile['country']}\n"
     )
     kb = get_reply_kb(["change_language", "buy_pro", "admin_help", "new_chat"], lang_code)
     await message.answer(text, reply_markup=kb, parse_mode="HTML")
